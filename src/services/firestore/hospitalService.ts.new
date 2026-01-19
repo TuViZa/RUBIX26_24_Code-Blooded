@@ -1,0 +1,275 @@
+import { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  Timestamp,
+  DocumentReference,
+  CollectionReference 
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { toast } from 'sonner';
+
+// Types
+export interface Hospital {
+  id: string;
+  name: string;
+  status: "normal" | "high" | "critical";
+  beds: {
+    total: number;
+    available: number;
+    icu: number;
+    ventilators: number;
+  };
+  emergency: boolean;
+  location: { x: number; y: number };
+  lastUpdated: Timestamp;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface CreateHospitalData {
+  name: string;
+  status: "normal" | "high" | "critical";
+  beds: {
+    total: number;
+    available: number;
+    icu: number;
+    ventilators: number;
+  };
+  emergency: boolean;
+  location: { x: number; y: number };
+}
+
+export interface UpdateHospitalData {
+  status?: "normal" | "high" | "critical";
+  beds?: {
+    total?: number;
+    available?: number;
+    icu?: number;
+    ventilators?: number;
+  };
+  emergency?: boolean;
+  location?: { x: number; y: number };
+  lastUpdated?: Timestamp;
+}
+
+class HospitalService {
+  private db = collection(getAuth().app, 'hospitals');
+
+  // Create or update hospital
+  async createOrUpdateHospital(hospitalData: CreateHospitalData): Promise<Hospital> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const hospitalRef = doc(this.db, hospitalData.id || auth.currentUser.uid);
+      const hospitalDoc = await getDoc(hospitalRef);
+      
+      if (hospitalDoc.exists()) {
+        // Update existing hospital
+        const updateData: UpdateHospitalData = {
+          ...hospitalData,
+          lastUpdated: new Timestamp()
+        };
+        
+        await updateDoc(hospitalRef, updateData);
+        toast.success('Hospital updated', {
+          description: 'Hospital information has been updated successfully'
+        });
+        
+        return hospitalDoc.data() as Hospital;
+      } else {
+        // Create new hospital
+        const newHospital: Hospital = {
+          id: hospitalData.id || auth.currentUser.uid,
+          name: hospitalData.name,
+          status: hospitalData.status || 'normal',
+          beds: hospitalData.beds || { total: 0, available: 0, icu: 0, ventilators: 0 },
+          emergency: hospitalData.emergency || false,
+          location: hospitalData.location || { x: 0, y: 0 },
+          createdAt: new Timestamp(),
+          lastUpdated: new Timestamp()
+        };
+        
+        await setDoc(hospitalRef, newHospital);
+        toast.success('Hospital created', {
+          description: 'New hospital has been added successfully'
+        });
+        
+        return newHospital;
+      }
+    } catch (error) {
+      console.error('Error creating/updating hospital:', error);
+      toast.error('Hospital operation failed', {
+        description: error.message
+      });
+      throw error;
+    }
+  }
+
+  // Get hospital by ID
+  async getHospitalById(hospitalId: string): Promise<Hospital | null> {
+    try {
+      const hospitalRef = doc(this.db, hospitalId);
+      const hospitalDoc = await getDoc(hospitalRef);
+      
+      if (hospitalDoc.exists()) {
+        return hospitalDoc.data() as Hospital;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching hospital:', error);
+      toast.error('Failed to fetch hospital data');
+      return null;
+    }
+  }
+
+  // Get all hospitals
+  async getAllHospitals(): Promise<Hospital[]> {
+    try {
+      const querySnapshot = await getDocs(this.db);
+      return querySnapshot.docs.map(doc => doc.data() as Hospital);
+    } catch (error) {
+      console.error('Error fetching hospitals:', error);
+      toast.error('Failed to fetch hospital data');
+      return [];
+    }
+  }
+
+  // Get hospitals by status
+  async getHospitalsByStatus(status: string): Promise<Hospital[]> {
+    try {
+      const q = query(this.db, where('status', '==', status));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as Hospital);
+    } catch (error) {
+      console.error('Error fetching hospitals by status:', error);
+      toast.error('Failed to fetch hospital data');
+      return [];
+    }
+  }
+
+  // Update hospital status
+  async updateHospitalStatus(hospitalId: string, status: Hospital['status']): Promise<void> {
+    try {
+      const hospitalRef = doc(this.db, hospitalId);
+      await updateDoc(hospitalRef, {
+        status,
+        lastUpdated: new Timestamp()
+      });
+      
+      toast.success('Hospital status updated', {
+        description: `Hospital status changed to ${status}`
+      });
+    } catch (error) {
+      console.error('Error updating hospital status:', error);
+      toast.error('Failed to update hospital status');
+      throw error;
+    }
+  }
+
+  // Update hospital emergency status
+  async updateHospitalEmergency(hospitalId: string, emergency: boolean): Promise<void> {
+    try {
+      const hospitalRef = doc(this.db, hospitalId);
+      await updateDoc(hospitalRef, {
+        emergency,
+        lastUpdated: new Timestamp()
+      });
+      
+      toast.success('Emergency status updated', {
+        description: emergency ? 'Emergency status activated' : 'Emergency status deactivated'
+      });
+    } catch (error) {
+      console.error('Error updating hospital emergency status:', error);
+      toast.error('Failed to update emergency status');
+      throw error;
+    }
+  }
+
+  // Update hospital bed availability
+  async updateHospitalBeds(hospitalId: string, beds: Partial<Hospital['beds']>): Promise<void> {
+    try {
+      const hospitalRef = doc(this.db, hospitalId);
+      await updateDoc(hospitalRef, {
+        beds: {
+          ...beds,
+          lastUpdated: new Timestamp()
+        },
+        lastUpdated: new Timestamp()
+      });
+      
+      toast.success('Bed availability updated', {
+        description: 'Hospital bed information has been updated'
+      });
+    } catch (error) {
+      console.error('Error updating hospital beds:', error);
+      toast.error('Failed to update bed availability');
+      throw error;
+    }
+  }
+
+  // Get hospitals by location
+  async getHospitalsNearLocation(x: number, y: number, radius: number = 50): Promise<Hospital[]> {
+    try {
+      // Calculate bounding box
+      const minLat = y - radius;
+      const maxLat = y + radius;
+      const minLon = x - radius;
+      const maxLon = x + radius;
+      
+      const q = query(this.db, where('location', '>=', minLat, '<=', maxLat, '>=', minLon, '<=', maxLat, '>=', maxLon));
+      const querySnapshot = await getDocs(q);
+      
+      return querySnapshot.docs
+        .map(doc => {
+          const hospital = doc.data() as Hospital;
+          const distance = Math.sqrt(
+            Math.pow(hospital.location.x - x, 2) + 
+            Math.pow(hospital.location.y - y, 2)
+          );
+          
+          return {
+            ...hospital,
+            distance
+          };
+        })
+        .filter(hospital => hospital.distance <= radius)
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 10); // Return top 10 closest hospitals
+    } catch (error) {
+      console.error('Error fetching nearby hospitals:', error);
+      toast.error('Failed to fetch nearby hospitals');
+      return [];
+    }
+  }
+
+  // Search hospitals
+  async searchHospitals(searchTerm: string): Promise<Hospital[]> {
+    try {
+      const q = query(
+        this.db,
+        where('name', '>=', searchTerm)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as Hospital);
+    } catch (error) {
+      console.error('Error searching hospitals:', error);
+      toast.error('Failed to search hospitals');
+      return [];
+    }
+  }
+}
+
+export default HospitalService;

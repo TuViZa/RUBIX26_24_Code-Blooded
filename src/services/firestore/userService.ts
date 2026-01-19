@@ -1,0 +1,182 @@
+import { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  Timestamp,
+  DocumentReference,
+  CollectionReference 
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from '../firebase/index';
+import { toast } from 'sonner';
+
+// Types
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'hospital_staff' | 'doctor' | 'nurse' | 'patient';
+  avatar?: string;
+  hospitalId?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface CreateUserData {
+  email: string;
+  name: string;
+  role: 'admin' | 'hospital_staff' | 'doctor' | 'nurse' | 'patient';
+  hospitalId?: string;
+}
+
+export interface UpdateUserData {
+  name?: string;
+  avatar?: string;
+  hospitalId?: string;
+  updatedAt?: Timestamp;
+}
+
+class UserService {
+  private db = collection(getFirestore(), 'users');
+
+  // Create or update user profile
+  async createOrUpdateUser(userData: CreateUserData): Promise<User> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const userRef = doc(this.db, auth.currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        // Update existing user
+        const updateData: UpdateUserData = {
+          name: userData.name,
+          avatar: userData.avatar,
+          hospitalId: userData.hospitalId,
+          updatedAt: new Timestamp()
+        };
+        
+        await updateDoc(userRef, updateData);
+        toast.success('Profile updated', {
+          description: 'Your profile has been updated successfully'
+        });
+        
+        return userDoc.data() as User;
+      } else {
+        // Create new user
+        const newUser: User = {
+          id: auth.currentUser.uid,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          hospitalId: userData.hospitalId,
+          avatar: userData.avatar,
+          createdAt: new Timestamp()
+        };
+        
+        await setDoc(userRef, newUser);
+        toast.success('Profile created', {
+          description: 'Your profile has been created successfully'
+        });
+        
+        return newUser;
+      }
+    } catch (error) {
+      console.error('Error creating/updating user:', error);
+      toast.error('Profile operation failed', {
+        description: error.message
+      });
+      throw error;
+    }
+  }
+
+  // Get user by ID
+  async getUserById(userId: string): Promise<User | null> {
+    try {
+      const userRef = doc(this.db, userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        return userDoc.data() as User;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      toast.error('Failed to fetch user profile');
+      return null;
+    }
+  }
+
+  // Get user by email
+  async getUserByEmail(email: string): Promise<User | null> {
+    try {
+      const q = query(this.db, where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty && querySnapshot.docs[0].data()) {
+        return querySnapshot.docs[0].data() as User;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching user by email:', error);
+      toast.error('Failed to fetch user profile');
+      return null;
+    }
+  }
+
+  // Get current authenticated user
+  async getCurrentUser(): Promise<User | null> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        return null;
+      }
+
+      const userRef = doc(this.db, auth.currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        return userDoc.data() as User;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      toast.error('Failed to fetch user profile');
+      return null;
+    }
+  }
+
+  // Update user role
+  async updateUserRole(userId: string, newRole: User['role']): Promise<void> {
+    try {
+      const userRef = doc(this.db, userId);
+      await updateDoc(userRef, {
+        role: newRole,
+        updatedAt: new Timestamp()
+      });
+      
+      toast.success('Role updated', {
+        description: `Your role has been updated to ${newRole}`
+      });
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      toast.error('Failed to update role');
+      throw error;
+    }
+  }
+}
+
+export default UserService;

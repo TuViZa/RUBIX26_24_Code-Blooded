@@ -1,0 +1,356 @@
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Calendar, 
+  Clock, 
+  User, 
+  FileText, 
+  Phone, 
+  Video, 
+  AlertTriangle,
+  Activity,
+  Heart,
+  Stethoscope,
+  Users,
+  MapPin
+} from 'lucide-react';
+import { useFirebaseAuth } from '@/contexts/FirebaseAuthContext';
+import { UserService } from '@/services/firestore/userService';
+import { toast } from 'sonner';
+
+// Types
+interface Appointment {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  date: string;
+  time: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  type: 'consultation' | 'checkup' | 'emergency' | 'surgery';
+  notes?: string;
+  createdAt: Date;
+}
+
+interface MedicalRecord {
+  id: string;
+  type: 'diagnosis' | 'prescription' | 'lab_result' | 'imaging' | 'vaccination';
+  title: string;
+  date: string;
+  doctorId: string;
+  doctorName: string;
+  description: string;
+  result?: string;
+  fileUrl?: string;
+  createdAt: Date;
+}
+
+export const PatientPortal = () => {
+  const { user } = useFirebaseAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
+
+  // Fetch real data from Firestore
+  useEffect(() => {
+    const fetchPatientData = async () => {
+      if (!user) return;
+
+      try {
+        setIsLoading(true);
+        
+        // Fetch user's appointments
+        const userAppointments = await UserService.getUserAppointments(user.id);
+        setAppointments(userAppointments || []);
+
+        // Fetch user's medical records
+        const userRecords = await UserService.getUserMedicalRecords(user.id);
+        setMedicalRecords(userRecords || []);
+
+        setIsLoading(false);
+        toast.success('Data loaded', {
+          description: 'Your patient data has been loaded from Firestore'
+        });
+      } catch (error) {
+        console.error('Error fetching patient data:', error);
+        toast.error('Failed to load patient data');
+        setIsLoading(false);
+      }
+    };
+
+    fetchPatientData();
+  }, [user]);
+
+  const handleBookAppointment = () => {
+    setIsLoading(true);
+    toast.loading('Opening appointment scheduler...');
+    
+    setTimeout(() => {
+      setIsLoading(false);
+      toast.success('Appointment scheduler opened', {
+        description: 'You can now book appointments with available doctors',
+        action: {
+          label: 'View Doctors',
+          onClick: () => console.log('Navigate to doctors list')
+        }
+      });
+    }, 1500);
+  };
+
+  const handleViewRecords = () => {
+    setIsLoading(true);
+    toast.loading('Loading medical records...');
+    
+    setTimeout(() => {
+      setIsLoading(false);
+      toast.success('Medical records loaded', {
+        description: 'Your complete medical history is now available',
+        action: {
+          label: 'Download Summary',
+          onClick: () => console.log('Download medical summary')
+        }
+      });
+    }, 1500);
+  };
+
+  const handleEmergency = () => {
+    toast.warning('Emergency services activated', {
+      description: 'Emergency services have been notified',
+      duration: 10000,
+      action: {
+        label: 'Call 911',
+        onClick: () => {
+          window.location.href = 'tel:911';
+          toast.success('Calling emergency services', {
+            description: 'Connecting to emergency services...'
+          });
+        }
+      }
+    });
+  };
+
+  const handleContactHospital = (hospitalId: string) => {
+    toast.info(`Contacting hospital ${hospitalId}...`, {
+      description: 'Connecting you to hospital services',
+      action: {
+        label: 'Video Call',
+        onClick: () => console.log('Start video call')
+      }
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <header className="bg-white shadow-sm rounded-2xl p-6 mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Patient Portal</h1>
+              <p className="text-gray-600">Welcome back, {user?.name || 'Patient'}!</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <Badge variant="outline" className="bg-green-100 text-green-800">
+                Active
+              </Badge>
+              <span className="text-sm text-gray-600">
+                {user?.email} • Last login: {new Date().toLocaleDateString()}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleBookAppointment}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                Book Appointment
+              </CardTitle>
+              <CardDescription>
+                Schedule appointments with available doctors
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center text-2xl font-bold text-blue-600 mb-2">
+                {appointments.length}
+              </div>
+              <p className="text-sm text-gray-600">Upcoming Appointments</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleViewRecords}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                Medical Records
+              </CardTitle>
+              <CardDescription>
+                View your complete medical history
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center text-2xl font-bold text-blue-600 mb-2">
+                {medicalRecords.length}
+              </div>
+              <p className="text-sm text-gray-600">Medical Records</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleEmergency}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                Emergency Services
+              </CardTitle>
+              <CardDescription>
+                Quick access to emergency medical services
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center">
+                <Phone className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                <p className="text-sm font-medium">24/7 Emergency</p>
+                <p className="text-xs text-gray-600">Call 911 for immediate assistance</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Health Status */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Heart className="w-5 h-5 text-red-600" />
+                Health Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Blood Pressure</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-red-500 h-2 rounded-full" style={{ width: '70%' }}></div>
+                    </div>
+                    <span className="text-sm font-medium">120/80</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Heart Rate</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-green-500 h-2 rounded-full" style={{ width: '75%' }}></div>
+                    </div>
+                    <span className="text-sm font-medium">72 bpm</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Temperature</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '60%' }}></div>
+                    </div>
+                    <span className="text-sm font-medium">98.6°F</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-600" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Stethoscope className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium">Consultation</p>
+                      <p className="text-xs text-gray-600">Dr. Smith • 2 days ago</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-600">Completed</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Users className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium">Lab Test</p>
+                      <p className="text-xs text-gray-600">Dr. Johnson • 1 week ago</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-600">Results Available</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-blue-600" />
+                Emergency Contacts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium">Primary Hospital</p>
+                      <p className="text-xs text-gray-600">City General Hospital</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleContactHospital('hospital1')}
+                  >
+                    Contact
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium">Emergency Services</p>
+                      <p className="text-xs text-gray-600">911 Emergency</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleContactHospital('emergency')}
+                  >
+                    Call
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-white">Loading your data...</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

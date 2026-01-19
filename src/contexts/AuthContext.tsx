@@ -1,0 +1,211 @@
+import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { User, AuthState, LoginCredentials, UserRole, ROLE_PERMISSIONS } from '@/types/auth';
+import { toast } from 'sonner';
+
+interface AuthContextType extends AuthState {
+  login: (credentials: LoginCredentials) => Promise<void>;
+  logout: () => void;
+  updateUser: (user: Partial<User>) => void;
+  hasPermission: (permission: keyof typeof ROLE_PERMISSIONS[UserRole]) => boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+type AuthAction =
+  | { type: 'LOGIN_START' }
+  | { type: 'LOGIN_SUCCESS'; payload: User }
+  | { type: 'LOGIN_FAILURE' }
+  | { type: 'LOGOUT' }
+  | { type: 'UPDATE_USER'; payload: Partial<User> }
+  | { type: 'SET_LOADING'; payload: boolean };
+
+const authReducer = (state: AuthState, action: AuthAction): AuthState => {
+  switch (action.type) {
+    case 'LOGIN_START':
+      return { ...state, isLoading: true };
+    case 'LOGIN_SUCCESS':
+      return {
+        ...state,
+        user: action.payload,
+        isAuthenticated: true,
+        isLoading: false,
+      };
+    case 'LOGIN_FAILURE':
+      return {
+        ...state,
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+      };
+    case 'LOGOUT':
+      return {
+        ...state,
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+      };
+    case 'UPDATE_USER':
+      return {
+        ...state,
+        user: state.user ? { ...state.user, ...action.payload } : null,
+      };
+    case 'SET_LOADING':
+      return {
+        ...state,
+        isLoading: action.payload,
+      };
+    default:
+      return state;
+  }
+};
+
+// Mock user database for demonstration
+const MOCK_USERS: User[] = [
+  {
+    id: '1',
+    email: 'admin@medsync.com',
+    name: 'System Administrator',
+    role: 'admin',
+    createdAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: '2',
+    email: 'staff@hospital.com',
+    name: 'John Smith',
+    role: 'hospital_staff',
+    hospitalId: 'hospital-1',
+    department: 'Administration',
+    createdAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: '3',
+    email: 'doctor@hospital.com',
+    name: 'Dr. Sarah Johnson',
+    role: 'doctor',
+    hospitalId: 'hospital-1',
+    department: 'Emergency',
+    licenseNumber: 'MD123456',
+    createdAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: '4',
+    email: 'nurse@hospital.com',
+    name: 'Emily Davis',
+    role: 'nurse',
+    hospitalId: 'hospital-1',
+    department: 'Emergency',
+    createdAt: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: '5',
+    email: 'patient@email.com',
+    name: 'Michael Brown',
+    role: 'patient',
+    patientId: 'PAT-001',
+    createdAt: '2024-01-01T00:00:00Z',
+  },
+];
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [state, dispatch] = useReducer(authReducer, {
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+  });
+
+  useEffect(() => {
+    // Check for stored auth state on mount
+    const storedUser = localStorage.getItem('medsync_user');
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        dispatch({ type: 'LOGIN_SUCCESS', payload: user });
+      } catch (error) {
+        localStorage.removeItem('medsync_user');
+      }
+    }
+  }, []);
+
+  const login = async (credentials: LoginCredentials): Promise<void> => {
+    dispatch({ type: 'LOGIN_START' });
+
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Find user in mock database
+      const user = MOCK_USERS.find(
+        u => u.email === credentials.email && u.role === credentials.role
+      );
+
+      if (!user) {
+        throw new Error('Invalid credentials or role mismatch');
+      }
+
+      // In a real app, you would verify the password here
+      // For demo purposes, we'll accept any password
+
+      // Update last login
+      const updatedUser = {
+        ...user,
+        lastLogin: new Date().toISOString(),
+      };
+
+      // Store in localStorage
+      localStorage.setItem('medsync_user', JSON.stringify(updatedUser));
+
+      dispatch({ type: 'LOGIN_SUCCESS', payload: updatedUser });
+      
+      toast.success(`Welcome back, ${updatedUser.name}!`, {
+        description: `Logged in as ${updatedUser.role.replace('_', ' ')}`,
+      });
+    } catch (error) {
+      dispatch({ type: 'LOGIN_FAILURE' });
+      toast.error('Login failed', {
+        description: error instanceof Error ? error.message : 'Please check your credentials',
+      });
+      throw error;
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('medsync_user');
+    dispatch({ type: 'LOGOUT' });
+    toast.success('Logged out successfully');
+  };
+
+  const updateUser = (updates: Partial<User>) => {
+    if (state.user) {
+      const updatedUser = { ...state.user, ...updates };
+      localStorage.setItem('medsync_user', JSON.stringify(updatedUser));
+      dispatch({ type: 'UPDATE_USER', payload: updates });
+    }
+  };
+
+  const hasPermission = (permission: keyof typeof ROLE_PERMISSIONS[UserRole]) => {
+    if (!state.user) return false;
+    return ROLE_PERMISSIONS[state.user.role][permission];
+  };
+
+  const value: AuthContextType = {
+    ...state,
+    login,
+    logout,
+    updateUser,
+    hasPermission,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

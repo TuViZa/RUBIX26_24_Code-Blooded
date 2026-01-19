@@ -1,0 +1,219 @@
+import { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  Timestamp,
+  DocumentReference,
+  CollectionReference 
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { toast } from 'sonner';
+
+// Types
+export interface Appointment {
+  id: string;
+  patientId: string;
+  doctorId: string;
+  doctorName: string;
+  date: string;
+  time: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  type: 'consultation' | 'checkup' | 'emergency' | 'surgery';
+  notes?: string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface CreateAppointmentData {
+  patientId: string;
+  doctorId: string;
+  doctorName: string;
+  date: string;
+  time: string;
+  type: 'consultation' | 'checkup' | 'emergency' | 'surgery';
+  notes?: string;
+}
+
+export interface UpdateAppointmentData {
+  status?: 'scheduled' | 'completed' | 'cancelled';
+  notes?: string;
+  updatedAt?: Timestamp;
+}
+
+class AppointmentService {
+  private db = collection(getAuth().app, 'appointments');
+
+  // Create appointment
+  async createAppointment(appointmentData: CreateAppointmentData): Promise<Appointment> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const appointmentRef = doc(this.db, appointmentData.patientId);
+      const appointmentDoc = await getDoc(appointmentRef);
+      
+      if (appointmentDoc.exists()) {
+        // Update existing appointment
+        const updateData: UpdateAppointmentData = {
+          ...appointmentData,
+          updatedAt: new Timestamp()
+        };
+        
+        await updateDoc(appointmentRef, updateData);
+        toast.success('Appointment updated', {
+          description: 'Appointment has been updated successfully'
+        });
+        
+        return appointmentDoc.data() as Appointment;
+      } else {
+        // Create new appointment
+        const newAppointment: Appointment = {
+          id: this.generateId(),
+          patientId: appointmentData.patientId,
+          doctorId: appointmentData.doctorId,
+          doctorName: appointmentData.doctorName,
+          date: appointmentData.date,
+          time: appointmentData.time,
+          status: 'scheduled',
+          type: appointmentData.type,
+          notes: appointmentData.notes,
+          createdAt: new Timestamp()
+        };
+        
+        await setDoc(appointmentRef, newAppointment);
+        toast.success('Appointment created', {
+          description: 'New appointment has been scheduled successfully'
+        });
+        
+        return newAppointment;
+      }
+    } catch (error) {
+      console.error('Error creating/updating appointment:', error);
+      toast.error('Appointment operation failed', {
+        description: error.message
+      });
+      throw error;
+    }
+  }
+
+  // Get appointment by ID
+  async getAppointmentById(appointmentId: string): Promise<Appointment | null> {
+    try {
+      const appointmentRef = doc(this.db, appointmentId);
+      const appointmentDoc = await getDoc(appointmentRef);
+      
+      if (appointmentDoc.exists()) {
+        return appointmentDoc.data() as Appointment;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching appointment:', error);
+      toast.error('Failed to fetch appointment');
+      return null;
+    }
+  }
+
+  // Get appointments by patient
+  async getAppointmentsByPatient(patientId: string): Promise<Appointment[]> {
+    try {
+      const q = query(this.db, where('patientId', '==', patientId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as Appointment);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      toast.error('Failed to fetch appointments');
+      return [];
+    }
+  }
+
+  // Get appointments by doctor
+  async getAppointmentsByDoctor(doctorId: string): Promise<Appointment[]> {
+    try {
+      const q = query(this.db, where('doctorId', '==', doctorId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as Appointment);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      toast.error('Failed to fetch appointments');
+      return [];
+    }
+  }
+
+  // Update appointment status
+  async updateAppointmentStatus(appointmentId: string, status: Appointment['status']): Promise<void> {
+    try {
+      const appointmentRef = doc(this.db, appointmentId);
+      await updateDoc(appointmentRef, {
+        status,
+        updatedAt: new Timestamp()
+      });
+      
+      toast.success('Appointment status updated', {
+        description: `Appointment status changed to ${status}`
+      });
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      toast.error('Failed to update appointment status');
+      throw error;
+    }
+  }
+
+  // Cancel appointment
+  async cancelAppointment(appointmentId: string, reason?: string): Promise<void> {
+    try {
+      const appointmentRef = doc(this.db, appointmentId);
+      await updateDoc(appointmentRef, {
+        status: 'cancelled',
+        updatedAt: new Timestamp()
+      });
+      
+      toast.success('Appointment cancelled', {
+        description: reason ? `Appointment cancelled: ${reason}` : 'Appointment has been cancelled'
+      });
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      toast.error('Failed to cancel appointment');
+      throw error;
+    }
+  }
+
+  // Get upcoming appointments
+  async getUpcomingAppointments(): Promise<Appointment[]> {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const q = query(
+        this.db, 
+        where('status', '==', 'scheduled'),
+        where('date', '>=', today.toISOString())
+      );
+      const querySnapshot = await getDocs(q);
+      
+      return querySnapshot.docs
+        .map(doc => doc.data() as Appointment)
+        .sort((a, b) => a.date.toDate() - b.date.toDate());
+    } catch (error) {
+      console.error('Error fetching upcoming appointments:', error);
+      toast.error('Failed to fetch upcoming appointments');
+      return [];
+    }
+  }
+
+  // Helper method to generate unique ID
+  private generateId(): string {
+    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+  }
+}
+
+export default AppointmentService;

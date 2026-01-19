@@ -1,0 +1,231 @@
+import { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  updateDoc, 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  Timestamp,
+  DocumentReference,
+  CollectionReference 
+} from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+import { toast } from 'sonner';
+
+// Types
+export interface MedicalRecord {
+  id: string;
+  type: 'diagnosis' | 'prescription' | 'lab_result' | 'imaging' | 'vaccination';
+  title: string;
+  date: string;
+  doctorId: string;
+  doctorName: string;
+  description: string;
+  result?: string;
+  fileUrl?: string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface CreateMedicalRecordData {
+  type: 'diagnosis' | 'prescription' | 'lab_result' | 'imaging' | 'vaccination';
+  title: string;
+  date: string;
+  doctorId: string;
+  doctorName: string;
+  description: string;
+  result?: string;
+  fileUrl?: string;
+}
+
+export interface UpdateMedicalRecordData {
+  result?: string;
+  notes?: string;
+  updatedAt?: Timestamp;
+}
+
+class MedicalRecordService {
+  private db = collection(getAuth().app, 'medicalRecords');
+
+  // Create medical record
+  async createMedicalRecord(recordData: CreateMedicalRecordData): Promise<MedicalRecord> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const recordRef = doc(this.db, recordData.patientId);
+      const recordDoc = await getDoc(recordRef);
+      
+      if (recordDoc.exists()) {
+        // Update existing record
+        const updateData: UpdateMedicalRecordData = {
+          ...recordData,
+          updatedAt: new Timestamp()
+        };
+        
+        await updateDoc(recordRef, updateData);
+        toast.success('Medical record updated', {
+          description: 'Medical record has been updated successfully'
+        });
+        
+        return recordDoc.data() as MedicalRecord;
+      } else {
+        // Create new record
+        const newRecord: MedicalRecord = {
+          id: recordData.patientId,
+          type: recordData.type,
+          title: recordData.title,
+          date: recordData.date,
+          doctorId: recordData.doctorId,
+          doctorName: recordData.doctorName,
+          description: recordData.description,
+          result: recordData.result,
+          fileUrl: recordData.fileUrl,
+          createdAt: new Timestamp()
+        };
+        
+        await setDoc(recordRef, newRecord);
+        toast.success('Medical record created', {
+          description: 'New medical record has been added successfully'
+        });
+        
+        return newRecord;
+      }
+    } catch (error) {
+      console.error('Error creating/updating medical record:', error);
+      toast.error('Medical record operation failed', {
+        description: error.message
+      });
+      throw error;
+    }
+  }
+
+  // Get medical record by ID
+  async getMedicalRecordById(recordId: string): Promise<MedicalRecord | null> {
+    try {
+      const recordRef = doc(this.db, recordId);
+      const recordDoc = await getDoc(recordRef);
+      
+      if (recordDoc.exists()) {
+        return recordDoc.data() as MedicalRecord;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching medical record:', error);
+      toast.error('Failed to fetch medical record');
+      return null;
+    }
+  }
+
+  // Get medical records by patient
+  async getMedicalRecordsByPatient(patientId: string): Promise<MedicalRecord[]> {
+    try {
+      const q = query(this.db, where('patientId', '==', patientId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as MedicalRecord);
+    } catch (error) {
+      console.error('Error fetching medical records:', error);
+      toast.error('Failed to fetch medical records');
+      return [];
+    }
+  }
+
+  // Get medical records by doctor
+  async getMedicalRecordsByDoctor(doctorId: string): Promise<MedicalRecord[]> {
+    try {
+      const q = query(this.db, where('doctorId', '==', doctorId));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as MedicalRecord);
+    } catch (error) {
+      console.error('Error fetching medical records:', error);
+      toast.error('Failed to fetch medical records');
+      return [];
+    }
+  }
+
+  // Get medical records by type
+  async getMedicalRecordsByType(type: string): Promise<MedicalRecord[]> {
+    try {
+      const q = query(this.db, where('type', '==', type));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as MedicalRecord);
+    } catch (error) {
+      console.error('Error fetching medical records:', error);
+      toast.error('Failed to fetch medical records');
+      return [];
+    }
+  }
+
+  // Update medical record
+  async updateMedicalRecord(recordId: string, updateData: UpdateMedicalRecordData): Promise<void> {
+    try {
+      const recordRef = doc(this.db, recordId);
+      await updateDoc(recordRef, {
+        ...updateData,
+        updatedAt: new Timestamp()
+      });
+      
+      toast.success('Medical record updated', {
+        description: 'Medical record has been updated successfully'
+      });
+    } catch (error) {
+      console.error('Error updating medical record:', error);
+      toast.error('Failed to update medical record');
+      throw error;
+    }
+  }
+
+  // Delete medical record
+  async deleteMedicalRecord(recordId: string): Promise<void> {
+    try {
+      const recordRef = doc(this.db, recordId);
+      await deleteDoc(recordRef);
+      
+      toast.success('Medical record deleted', {
+        description: 'Medical record has been deleted successfully'
+      });
+    } catch (error) {
+      console.error('Error deleting medical record:', error);
+      toast.error('Failed to delete medical record');
+      throw error;
+    }
+  }
+
+  // Upload medical file
+  async uploadMedicalFile(file: File, patientId: string, doctorId: string): Promise<string> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const fileUrl = await UserService.uploadFile(file, `medical-records/${patientId}/${doctorId}/${Date.now()}`);
+      
+      const recordRef = doc(this.db, `${patientId}/${doctorId}/${Date.now()}`);
+      await updateDoc(recordRef, {
+        type: 'imaging',
+        fileUrl,
+        updatedAt: new Timestamp()
+      });
+      
+      toast.success('Medical file uploaded', {
+        description: 'Medical file has been uploaded successfully'
+      });
+      
+      return fileUrl;
+    } catch (error) {
+      console.error('Error uploading medical file:', error);
+      toast.error('Failed to upload medical file');
+      throw error;
+    }
+  }
+}
+
+export default MedicalRecordService;
