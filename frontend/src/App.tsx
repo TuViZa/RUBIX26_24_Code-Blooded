@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import { Login } from "./pages/Login";
 import CommandCenter from "./pages/CommandCenter";
+import InventoryTest from "./pages/InventoryTest";
 import Dashboard from "./pages/Dashboard";
 import OPDQueue from "./pages/OPDQueue";
 import BedStatus from "./pages/BedStatus";
@@ -81,6 +82,11 @@ const App = () => (
             <Route path="/inventory" element={
               <ProtectedRoute requiredPermission="canManageInventory">
                 <Inventory />
+              </ProtectedRoute>
+            } />
+            <Route path="/inventory-test" element={
+              <ProtectedRoute requiredPermission="canViewReports">
+                <InventoryTest />
               </ProtectedRoute>
             } />
             <Route path="/interventions" element={

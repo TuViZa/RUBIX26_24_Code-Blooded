@@ -13,25 +13,41 @@ router.post('/add', async (req, res) => {
   }
 });
 
-// GET /heatmap-data - Return hardcoded dengue outbreak data for Mumbai
-router.get('/heatmap-data', (req, res) => {
-  const mumbaiLat = 19.07;
-  const mumbaiLng = 72.87;
+// GET /heatmap-data - Return hospital data from MongoDB
+router.get('/heatmap-data', async (req, res) => {
+  console.log('Hit: Heatmap Data Endpoint');
   
-  const heatmapData = [];
-  for (let i = 0; i < 50; i++) {
-    const latOffset = (Math.random() - 0.5) * 0.3; // ±0.15 degrees
-    const lngOffset = (Math.random() - 0.5) * 0.3; // ±0.15 degrees
-    const intensity = 0.5 + Math.random() * 0.5; // 0.5 to 1.0
+  try {
+    const hospitals = await Hospital.find({});
+    const heatmapData = hospitals.map(hospital => ({
+      lat: hospital.location.lat,
+      lng: hospital.location.lng,
+      intensity: hospital.occupiedBeds / hospital.totalBeds
+    }));
     
-    heatmapData.push({
-      lat: mumbaiLat + latOffset,
-      lng: mumbaiLng + lngOffset,
-      intensity: intensity
-    });
+    res.json(heatmapData);
+  } catch (error) {
+    console.error('Error fetching heatmap data:', error);
+    res.status(500).json({ error: 'Failed to fetch heatmap data' });
   }
-  
-  res.json(heatmapData);
+});
+
+// GET /inventory/:id - Fetch specific hospital's inventory
+router.get('/inventory/:id', async (req, res) => {
+  try {
+    const hospital = await Hospital.findById(req.params.id);
+    if (!hospital) {
+      return res.status(404).json({ error: 'Hospital not found' });
+    }
+    
+    res.json({
+      hospitalName: hospital.name,
+      inventory: hospital.inventory || []
+    });
+  } catch (error) {
+    console.error('Error fetching inventory:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory' });
+  }
 });
 
 module.exports = router;

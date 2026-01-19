@@ -27,7 +27,7 @@ const hospitalSchema = new mongoose.Schema({
     min: 0
   },
   inventory: [{
-    itemName: {
+    name: {
       type: String,
       required: true
     },
@@ -36,9 +36,18 @@ const hospitalSchema = new mongoose.Schema({
       required: true,
       min: 0
     },
+    unit: {
+      type: String,
+      required: true
+    },
     expiryDate: {
       type: Date,
-      required: true
+      default: null
+    },
+    category: {
+      type: String,
+      required: true,
+      enum: ['Medicine', 'Equipment', 'Supplies']
     }
   }]
 }, {

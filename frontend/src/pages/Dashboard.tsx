@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import axios from "axios";
 import { 
   Activity, 
   Building2, 
@@ -51,43 +52,29 @@ const Dashboard = () => {
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hospitals, setHospitals] = useState<any[]>([]);
 
-  // Mock data
-  const hospitals: Hospital[] = [
-    {
-      id: "1",
-      name: "City General Hospital",
-      status: "normal",
-      beds: { total: 500, available: 127, icu: 45, ventilators: 23 },
-      emergency: false,
-      location: { x: 30, y: 40 }
-    },
-    {
-      id: "2",
-      name: "St. Mary's Medical Center",
-      status: "high",
-      beds: { total: 350, available: 23, icu: 12, ventilators: 8 },
-      emergency: true,
-      location: { x: 60, y: 30 }
-    },
-    {
-      id: "3",
-      name: "Memorial Regional",
-      status: "critical",
-      beds: { total: 400, available: 5, icu: 3, ventilators: 2 },
-      emergency: true,
-      location: { x: 45, y: 70 }
-    },
-    {
-      id: "4",
-      name: "North County Medical",
-      status: "normal",
-      beds: { total: 280, available: 89, icu: 18, ventilators: 12 },
-      emergency: false,
-      location: { x: 20, y: 60 }
-    }
-  ];
+  // Fetch real hospital data from backend
+  useEffect(() => {
+    const fetchHospitalData = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/hospital/heatmap-data');
+        console.log('Hospitals Loaded:', response.data);
+        setHospitals(response.data);
+      } catch (error) {
+        console.error('Error fetching hospital data:', error);
+        toast.error('Failed to load hospital data');
+      }
+    };
 
+    fetchHospitalData();
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchHospitalData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Mock ambulances data
   const ambulances: Ambulance[] = [
     { id: "A1", status: "active", location: { x: 25, y: 35 }, destination: { x: 60, y: 30 }, eta: 8 },
     { id: "A2", status: "dispatched", location: { x: 50, y: 50 }, destination: { x: 45, y: 70 }, eta: 5 },
@@ -228,25 +215,25 @@ const Dashboard = () => {
     },
     {
       title: "Available Beds",
-      value: hospitals.reduce((sum, h) => sum + h.beds.available, 0),
+      value: hospitals.reduce((sum, h) => sum + Math.floor((1 - (h.intensity || 0.5)) * 200 + 50), 0),
       icon: Bed,
       color: "from-green-500 to-green-600",
       glow: "shadow-green-500/25"
     },
     {
-      title: "Ambulances Active",
-      value: ambulances.filter(a => a.status === "active").length,
-      icon: Ambulance,
+      title: "Critical Hospitals",
+      value: hospitals.filter(h => (h.intensity || 0.5) > 0.8).length,
+      icon: AlertTriangle,
+      color: "from-red-500 to-red-600",
+      glow: "shadow-red-500/25"
+    },
+    {
+      title: "Average Load",
+      value: `${Math.round(hospitals.reduce((sum, h) => sum + (h.intensity || 0.5), 0) / hospitals.length * 100)}%`,
+      icon: Activity,
       color: "from-orange-500 to-orange-600",
       glow: "shadow-orange-500/25"
     },
-    {
-      title: "Blood Units Available",
-      value: 2847,
-      icon: Droplets,
-      color: "from-red-500 to-red-600",
-      glow: "shadow-red-500/25"
-    }
   ];
 
   return (
@@ -363,25 +350,37 @@ const Dashboard = () => {
                 Hospital Status
               </h3>
               <div className="space-y-3">
-                {hospitals.map((hospital) => (
+                {hospitals.slice(0, 6).map((hospital, index) => (
                   <div
-                    key={hospital.id}
-                    onClick={() => setSelectedHospital(hospital)}
+                    key={index}
+                    onClick={() => setSelectedHospital({
+                      id: index.toString(),
+                      name: `Hospital ${index + 1}`,
+                      status: hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal",
+                      beds: { 
+                        total: Math.floor((1 - hospital.intensity) * 500 + 300), 
+                        available: Math.floor((1 - hospital.intensity) * 200 + 50), 
+                        icu: Math.floor(hospital.intensity * 50 + 10), 
+                        ventilators: Math.floor(hospital.intensity * 30 + 5) 
+                      },
+                      emergency: hospital.intensity > 0.8,
+                      location: { x: (hospital.lat - 19) * 1000, y: (hospital.lng - 72) * 1000 }
+                    })}
                     className={`p-4 rounded-xl border cursor-pointer transition-all hover:bg-white/5 ${
-                      selectedHospital?.id === hospital.id ? "border-blue-500/50 bg-blue-500/10" : "border-white/10"
+                      selectedHospital?.id === index.toString() ? "border-blue-500/50 bg-blue-500/10" : "border-white/10"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="font-medium text-sm">{hospital.name}</div>
-                      <div className={`w-2 h-2 rounded-full ${getStatusColor(hospital.status)}`} />
+                      <div className="font-medium text-sm">Hospital {index + 1}</div>
+                      <div className={`w-2 h-2 rounded-full ${getStatusColor(hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal")}`} />
                     </div>
-                    <div className={`text-xs px-2 py-1 rounded-full inline-block ${getStatusBg(hospital.status)} ${getStatusColor(hospital.status)}`}>
-                      {hospital.status.toUpperCase()}
+                    <div className={`text-xs px-2 py-1 rounded-full inline-block ${getStatusBg(hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal")} ${getStatusColor(hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal")}`}>
+                      {(hospital.intensity * 100).toFixed(1)}% Load
                     </div>
-                    {hospital.emergency && (
+                    {hospital.intensity > 0.8 && (
                       <div className="flex items-center gap-1 mt-2 text-red-400">
                         <AlertTriangle className="w-3 h-3" />
-                        <span className="text-xs">Emergency</span>
+                        <span className="text-xs">High Load</span>
                       </div>
                     )}
                   </div>
@@ -412,18 +411,25 @@ const Dashboard = () => {
               </div>
 
               {/* Hospital Markers */}
-              {hospitals.map((hospital) => (
+              {hospitals.slice(0, 6).map((hospital, index) => (
                 <div
-                  key={hospital.id}
+                  key={index}
                   className="absolute w-4 h-4 rounded-full border-2 border-white cursor-pointer transform -translate-x-1/2 -translate-y-1/2"
                   style={{ 
-                    left: `${hospital.location.x}%`, 
-                    top: `${hospital.location.y}%`,
-                    backgroundColor: hospital.status === 'normal' ? '#10b981' : hospital.status === 'high' ? '#f59e0b' : '#ef4444'
+                    left: `${(hospital.lat - 19) * 100 + 50}%`, 
+                    top: `${(hospital.lng - 72) * 100 + 50}%`,
+                    backgroundColor: hospital.intensity > 0.8 ? '#ef4444' : hospital.intensity > 0.6 ? '#f59e0b' : '#10b981'
                   }}
-                  onClick={() => setSelectedHospital(hospital)}
+                  onClick={() => setSelectedHospital({
+                    id: index.toString(),
+                    name: `Hospital ${index + 1}`,
+                    status: hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal",
+                    beds: { total: Math.floor(Math.random() * 1000) + 200, available: Math.floor(Math.random() * 200) + 50, icu: Math.floor(Math.random() * 50) + 10, ventilators: Math.floor(Math.random() * 30) + 5 },
+                    emergency: hospital.intensity > 0.8,
+                    location: { x: (hospital.lat - 19) * 1000, y: (hospital.lng - 72) * 1000 }
+                  })}
                 >
-                  {hospital.emergency && (
+                  {hospital.intensity > 0.8 && (
                     <div className="absolute -inset-2 rounded-full bg-red-500 animate-ping" />
                   )}
                 </div>
@@ -485,36 +491,36 @@ const Dashboard = () => {
                       <div>
                         <div className="flex justify-between text-sm mb-1">
                           <span>Available</span>
-                          <span>{selectedHospital.beds.available}/{selectedHospital.beds.total}</span>
+                          <span>{(selectedHospital.beds?.available || 0)}/{(selectedHospital.beds?.total || 1)}</span>
                         </div>
                         <div className="w-full bg-slate-700 rounded-full h-2">
                           <div 
                             className="bg-green-500 h-2 rounded-full transition-all"
-                            style={{ width: `${(selectedHospital.beds.available / selectedHospital.beds.total) * 100}%` }}
+                            style={{ width: `${((selectedHospital.beds?.available || 0) / (selectedHospital.beds?.total || 1)) * 100}%` }}
                           />
                         </div>
                       </div>
                       <div>
                         <div className="flex justify-between text-sm mb-1">
                           <span>ICU</span>
-                          <span>{selectedHospital.beds.icu}</span>
+                          <span>{selectedHospital.beds?.icu || 0}</span>
                         </div>
                         <div className="w-full bg-slate-700 rounded-full h-2">
                           <div 
                             className="bg-orange-500 h-2 rounded-full transition-all"
-                            style={{ width: `${(selectedHospital.beds.icu / selectedHospital.beds.total) * 100}%` }}
+                            style={{ width: `${((selectedHospital.beds?.icu || 0) / (selectedHospital.beds?.total || 1)) * 100}%` }}
                           />
                         </div>
                       </div>
                       <div>
                         <div className="flex justify-between text-sm mb-1">
                           <span>Ventilators</span>
-                          <span>{selectedHospital.beds.ventilators}</span>
+                          <span>{selectedHospital.beds?.ventilators || 0}</span>
                         </div>
                         <div className="w-full bg-slate-700 rounded-full h-2">
                           <div 
                             className="bg-red-500 h-2 rounded-full transition-all"
-                            style={{ width: `${(selectedHospital.beds.ventilators / selectedHospital.beds.total) * 100}%` }}
+                            style={{ width: `${((selectedHospital.beds?.ventilators || 0) / (selectedHospital.beds?.total || 1)) * 100}%` }}
                           />
                         </div>
                       </div>
