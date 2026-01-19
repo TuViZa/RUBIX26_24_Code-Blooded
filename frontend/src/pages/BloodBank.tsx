@@ -1,4 +1,4 @@
-import { AppLayout } from "@/components/layout/AppLayout";
+
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -42,7 +42,7 @@ const BloodBank = () => {
   const criticalTypes = bloodTypes.filter(bt => bt.status === "critical").length;
 
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -260,7 +260,7 @@ const BloodBank = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+    
   );
 };
 

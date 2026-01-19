@@ -1,4 +1,4 @@
-import { AppLayout } from "@/components/layout/AppLayout";
+
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { 
@@ -55,7 +55,7 @@ const Interventions = () => {
   const completed = interventions.filter(i => i.status === "completed").length;
 
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -173,7 +173,7 @@ const Interventions = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+    
   );
 };
 

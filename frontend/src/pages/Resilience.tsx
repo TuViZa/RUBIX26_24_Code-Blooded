@@ -1,4 +1,4 @@
-import { AppLayout } from "@/components/layout/AppLayout";
+
 import { StatCard } from "@/components/dashboard/StatCard";
 import { 
   Shield, 
@@ -22,7 +22,7 @@ const Resilience = () => {
   const overallScore = Math.round(resilienceMetrics.reduce((acc, m) => acc + m.score, 0) / resilienceMetrics.length);
 
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -86,7 +86,7 @@ const Resilience = () => {
           ))}
         </div>
       </div>
-    </AppLayout>
+    
   );
 };
 

@@ -1,4 +1,4 @@
-import { AppLayout } from "@/components/layout/AppLayout";
+
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { 
@@ -53,7 +53,7 @@ const OPDQueue = () => {
   });
 
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -243,7 +243,7 @@ const OPDQueue = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+    
   );
 };
 

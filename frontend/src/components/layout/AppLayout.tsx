@@ -1,3 +1,4 @@
+import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           
           {/* Main Content */}
           <main className="flex-1 overflow-auto">
-            {children}
+            {children ?? <Outlet />}
           </main>
         </div>
       </div>
