@@ -322,8 +322,9 @@ const BloodBank = () => {
           </div>
         </div>
       </div>
-    
+    </AppLayout>
   );
+
 };
 
 export default BloodBank;

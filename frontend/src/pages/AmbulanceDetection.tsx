@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useAmbulanceTracking } from "@/hooks/useAmbulanceTracking";
 import { 
   Ambulance, 
   MapPin, 
@@ -16,127 +17,68 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface AmbulanceUnit {
-  id: string;
-  unitNumber: string;
-  status: "active" | "dispatched" | "available" | "maintenance";
-  location: {
-    lat: number;
-    lng: number;
-    address: string;
-  };
-  destination?: {
-    lat: number;
-    lng: number;
-    address: string;
-  };
-  eta?: number;
-  crew: {
-    driver: string;
-    paramedic: string;
-    emt: string;
-  };
-  patient?: {
-    name: string;
-    condition: "critical" | "stable" | "minor";
-    destination: string;
-  };
-  lastUpdate: string;
-}
 
 const AmbulanceDetection = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { ambulances = [], loading } = useAmbulanceTracking();
 
-  const ambulances: AmbulanceUnit[] = [
-    {
-      id: "1",
-      unitNumber: "AMB-001",
-      status: "active",
-      location: {
-        lat: 40.7128,
-        lng: -74.0060,
-        address: "123 Main St, Downtown"
-      },
-      destination: {
-        lat: 40.7580,
-        lng: -73.9855,
-        address: "City General Hospital, 456 Health Ave"
-      },
-      eta: 8,
-      crew: {
-        driver: "John Smith",
-        paramedic: "Sarah Johnson",
-        emt: "Mike Davis"
-      },
-      patient: {
-        name: "Jane Doe",
-        condition: "critical",
-        destination: "City General Hospital"
-      },
-      lastUpdate: "2 mins ago"
-    },
-    {
-      id: "2",
-      unitNumber: "AMB-002",
-      status: "dispatched",
-      location: {
-        lat: 40.7489,
-        lng: -73.9680,
-        address: "789 Emergency Rd"
-      },
-      destination: {
-        lat: 40.7282,
-        lng: -74.0776,
-        address: "St. Mary's Medical, 321 Care Blvd"
-      },
-      eta: 12,
-      crew: {
-        driver: "Robert Brown",
-        paramedic: "Lisa Wilson",
-        emt: "Tom Martinez"
-      },
-      patient: {
-        name: "John Smith",
-        condition: "stable",
-        destination: "St. Mary's Medical"
-      },
-      lastUpdate: "5 mins ago"
-    },
-    {
-      id: "3",
-      unitNumber: "AMB-003",
-      status: "available",
-      location: {
-        lat: 40.7282,
-        lng: -74.0776,
-        address: "Central Station, 555 Base St"
-      },
-      crew: {
-        driver: "David Lee",
-        paramedic: "Emily Chen",
-        emt: "Chris Taylor"
-      },
-      lastUpdate: "1 min ago"
-    },
-    {
-      id: "4",
-      unitNumber: "AMB-004",
-      status: "maintenance",
-      location: {
-        lat: 40.7589,
-        lng: -73.9851,
-        address: "Maintenance Garage, 999 Service Rd"
-      },
-      crew: {
-        driver: "James Wilson",
-        paramedic: "Anna Garcia",
-        emt: "Kevin White"
-      },
-      lastUpdate: "3 hours ago"
+  // Helper function to format time ago
+  function formatTimeAgo(timestamp: string | null | undefined): string {
+    if (!timestamp) return "Unknown";
+    
+    try {
+      const now = new Date();
+      const past = new Date(timestamp);
+      if (isNaN(past.getTime())) return "Unknown";
+      
+      const diffMs = now.getTime() - past.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      
+      if (diffMins < 60) {
+        return `${diffMins} mins ago`;
+      } else if (diffMins < 1440) {
+        return `${Math.floor(diffMins / 60)} hours ago`;
+      } else {
+        return `${Math.floor(diffMins / 1440)} days ago`;
+      }
+    } catch (error) {
+      return "Unknown";
     }
-  ];
+  }
+
+  // Safe array for all operations
+  const safeAmbulances = Array.isArray(ambulances) ? ambulances : [];
+
+  // Transform data to match UI expectations
+  const transformedAmbulances = safeAmbulances.map((position, index) => ({
+    id: position.ambulance_id,
+    unitNumber: position.ambulance_id,
+    status: position.status,
+    location: {
+      lat: position.lat,
+      lng: position.lng,
+      address: `${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}` // Simple address from coordinates
+    },
+    destination: position.status === 'active' ? {
+      lat: position.lat + 0.01,
+      lng: position.lng + 0.01,
+      address: 'Destination Hospital'
+    } : undefined,
+    eta: position.status === 'active' ? Math.floor(Math.random() * 15) + 5 : undefined,
+    crew: {
+      driver: `Driver ${index + 1}`,
+      paramedic: `Paramedic ${index + 1}`,
+      emt: `EMT ${index + 1}`
+    },
+    patient: position.status === 'active' ? {
+      name: `Patient ${index + 1}`,
+      condition: index % 2 === 0 ? 'critical' : 'stable',
+      destination: 'City General Hospital'
+    } : undefined,
+    lastUpdate: formatTimeAgo(position.updated_at)
+  }));
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -164,7 +106,7 @@ const AmbulanceDetection = () => {
     }
   };
 
-  const filteredAmbulances = ambulances.filter(ambulance => {
+  const filteredAmbulances = transformedAmbulances.filter(ambulance => {
     const matchesSearch = ambulance.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          ambulance.crew.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          ambulance.location.address.toLowerCase().includes(searchTerm.toLowerCase());
@@ -203,7 +145,7 @@ const AmbulanceDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Active Units</p>
-                  <p className="text-2xl font-bold text-green-600">1</p>
+                  <p className="text-2xl font-bold text-green-600">{transformedAmbulances.filter(a => a.status === 'active').length}</p>
                 </div>
                 <Activity className="w-8 h-8 text-green-500" />
               </div>
@@ -215,7 +157,7 @@ const AmbulanceDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Dispatched</p>
-                  <p className="text-2xl font-bold text-blue-600">1</p>
+                  <p className="text-2xl font-bold text-blue-600">{transformedAmbulances.filter(a => a.status === 'dispatched').length}</p>
                 </div>
                 <Navigation className="w-8 h-8 text-blue-500" />
               </div>
@@ -227,7 +169,7 @@ const AmbulanceDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Available</p>
-                  <p className="text-2xl font-bold text-gray-600">1</p>
+                  <p className="text-2xl font-bold text-gray-600">{transformedAmbulances.filter(a => a.status === 'available').length}</p>
                 </div>
                 <Zap className="w-8 h-8 text-gray-500" />
               </div>
@@ -239,7 +181,7 @@ const AmbulanceDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Maintenance</p>
-                  <p className="text-2xl font-bold text-orange-600">1</p>
+                  <p className="text-2xl font-bold text-orange-600">{transformedAmbulances.filter(a => a.status === 'maintenance').length}</p>
                 </div>
                 <AlertTriangle className="w-8 h-8 text-orange-500" />
               </div>
@@ -277,7 +219,7 @@ const AmbulanceDetection = () => {
               ))}
             </div>
 
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
@@ -286,7 +228,7 @@ const AmbulanceDetection = () => {
 
         {/* Ambulance Fleet */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredAmbulances.map((ambulance) => (
+          {transformedAmbulances.map((ambulance) => (
             <Card key={ambulance.id} className={`border-l-4 ${getStatusColor(ambulance.status).split(' ')[2]}`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -402,7 +344,7 @@ const AmbulanceDetection = () => {
         </div>
 
         {/* Empty State */}
-        {filteredAmbulances.length === 0 && (
+        {transformedAmbulances.length === 0 && (
           <div className="text-center py-12">
             <Ambulance className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No ambulances found</h3>
