@@ -1,3 +1,4 @@
+import React, { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
@@ -10,28 +11,32 @@ import {
   Search,
   Filter,
   Plus,
-  TrendingDown
+  TrendingDown,
+  UserCheck,
+  Stethoscope
 } from "lucide-react";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-const departments = [
-  { id: "all", name: "All Departments", count: 127 },
-  { id: "general", name: "General Medicine", count: 45 },
-  { id: "cardio", name: "Cardiology", count: 23 },
-  { id: "ortho", name: "Orthopedics", count: 18 },
-  { id: "neuro", name: "Neurology", count: 15 },
-  { id: "pedia", name: "Pediatrics", count: 26 },
-];
+// --- Types & Initial Data ---
+type Priority = "urgent" | "high" | "normal";
+type Status = "waiting" | "in-consultation" | "checked-in" | "completed";
 
-const queueData = [
+interface Patient {
+  token: string;
+  name: string;
+  age: number;
+  department: string;
+  checkInTime: string;
+  waitTime: number;
+  priority: Priority;
+  status: Status;
+}
+
+const initialQueue: Patient[] = [
   { token: "A-001", name: "Rajesh Kumar", age: 45, department: "Cardiology", checkInTime: "08:30 AM", waitTime: 45, priority: "high", status: "waiting" },
   { token: "A-002", name: "Sunita Devi", age: 62, department: "General Medicine", checkInTime: "08:35 AM", waitTime: 40, priority: "high", status: "waiting" },
-  { token: "A-003", name: "Vikram Singh", age: 34, department: "Orthopedics", checkInTime: "08:42 AM", waitTime: 33, priority: "normal", status: "waiting" },
   { token: "A-004", name: "Meera Patel", age: 28, department: "General Medicine", checkInTime: "08:48 AM", waitTime: 27, priority: "normal", status: "in-consultation" },
   { token: "A-005", name: "Arjun Reddy", age: 55, department: "Cardiology", checkInTime: "08:55 AM", waitTime: 20, priority: "urgent", status: "waiting" },
-  { token: "A-006", name: "Kavitha Nair", age: 41, department: "Neurology", checkInTime: "09:02 AM", waitTime: 13, priority: "normal", status: "waiting" },
-  { token: "A-007", name: "Deepak Sharma", age: 67, department: "General Medicine", checkInTime: "09:10 AM", waitTime: 5, priority: "high", status: "waiting" },
   { token: "A-008", name: "Anjali Gupta", age: 8, department: "Pediatrics", checkInTime: "09:15 AM", waitTime: 0, priority: "normal", status: "checked-in" },
 ];
 
@@ -42,15 +47,64 @@ const priorityConfig = {
 };
 
 const OPDQueue = () => {
-  const [selectedDept, setSelectedDept] = useState("all");
+  const [queue, setQueue] = useState<Patient[]>(initialQueue);
+  const [selectedDept, setSelectedDept] = useState("All Departments");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredQueue = queueData.filter(patient => {
-    const matchesDept = selectedDept === "all" || patient.department.toLowerCase().includes(selectedDept);
-    const matchesSearch = patient.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          patient.token.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesDept && matchesSearch;
-  });
+  // --- Handlers ---
+
+  const handleStatusChange = (token: string, newStatus: Status) => {
+    setQueue(prev => prev.map(p => 
+      p.token === token ? { ...p, status: newStatus } : p
+    ));
+  };
+
+  const handleAddPatient = () => {
+    const names = ["Suresh Rai", "Vikas Khanna", "Aditi Rao", "Pooja Shinde"];
+    const depts = ["Cardiology", "General Medicine", "Pediatrics", "Neurology"];
+    const priorities: Priority[] = ["normal", "high", "urgent"];
+    
+    const newPatient: Patient = {
+      token: `A-0${queue.length + 10}`,
+      name: names[Math.floor(Math.random() * names.length)],
+      age: Math.floor(Math.random() * 50) + 10,
+      department: depts[Math.floor(Math.random() * depts.length)],
+      checkInTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      waitTime: 0,
+      priority: priorities[Math.floor(Math.random() * priorities.length)],
+      status: "checked-in"
+    };
+    
+    setQueue([newPatient, ...queue]);
+  };
+
+  // --- Calculations ---
+
+  const stats = useMemo(() => {
+    const active = queue.filter(p => p.status !== "completed");
+    return {
+      total: active.length,
+      priority: active.filter(p => p.priority === "urgent" || p.priority === "high").length,
+      seenToday: queue.filter(p => p.status === "completed").length + 89, // Initial mock offset
+      avgWait: Math.floor(active.reduce((acc, p) => acc + p.waitTime, 0) / (active.length || 1))
+    };
+  }, [queue]);
+
+  const filteredQueue = useMemo(() => {
+    return queue
+      .filter(p => p.status !== "completed")
+      .filter(p => {
+        const matchesDept = selectedDept === "All Departments" || p.department === selectedDept;
+        const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                              p.token.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesDept && matchesSearch;
+      })
+      .sort((a, b) => {
+        // Priority sorting logic
+        const weight = { urgent: 0, high: 1, normal: 2 };
+        return weight[a.priority] - weight[b.priority];
+      });
+  }, [queue, selectedDept, searchQuery]);
 
   return (
     <AppLayout>
@@ -59,186 +113,135 @@ const OPDQueue = () => {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
           <div>
             <h1 className="font-display text-3xl font-bold mb-2">OPD Queue Management</h1>
-            <p className="text-muted-foreground">Real-time patient queue prioritization and tracking</p>
+            <p className="text-muted-foreground font-medium">Real-time patient flow and prioritization</p>
           </div>
           <div className="flex items-center gap-3 mt-4 lg:mt-0">
-            <Button variant="outline" size="sm">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Refresh
+            <Button variant="outline" size="sm" onClick={() => setQueue(initialQueue)}>
+              <RotateCcw className="w-4 h-4 mr-2" /> Reset View
             </Button>
-            <Button variant="hero" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Patient
+            <Button variant="hero" size="sm" onClick={handleAddPatient}>
+              <Plus className="w-4 h-4 mr-2" /> Add Patient
             </Button>
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">127</div>
-                <div className="text-xs text-muted-foreground">Total in Queue</div>
-              </div>
+          <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Users className="w-6 h-6 text-primary" /></div>
+              <div><div className="text-2xl font-bold">{stats.total}</div><div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">In Queue</div></div>
             </div>
           </div>
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-warning" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">24 min</div>
-                <div className="text-xs text-muted-foreground">Avg. Wait Time</div>
-              </div>
+          <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center"><Clock className="w-6 h-6 text-warning" /></div>
+              <div><div className="text-2xl font-bold">{stats.avgWait} min</div><div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Avg Wait</div></div>
             </div>
           </div>
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-critical/10 flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-critical" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">8</div>
-                <div className="text-xs text-muted-foreground">Priority Cases</div>
-              </div>
+          <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-critical/10 flex items-center justify-center"><AlertCircle className="w-6 h-6 text-critical" /></div>
+              <div><div className="text-2xl font-bold">{stats.priority}</div><div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Priority Cases</div></div>
             </div>
           </div>
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-success" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">89</div>
-                <div className="text-xs text-muted-foreground">Seen Today</div>
-              </div>
+          <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center"><CheckCircle className="w-6 h-6 text-success" /></div>
+              <div><div className="text-2xl font-bold">{stats.seenToday}</div><div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Seen Today</div></div>
             </div>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Department Filter */}
+          {/* Filters */}
           <div className="lg:col-span-1">
-            <div className="bg-card rounded-2xl border border-border p-4 sticky top-24">
-              <h3 className="font-semibold mb-4">Departments</h3>
-              <div className="space-y-2">
-                {departments.map((dept) => (
-                  <button
-                    key={dept.id}
-                    onClick={() => setSelectedDept(dept.id)}
-                    className={cn(
-                      "w-full flex items-center justify-between p-3 rounded-xl text-sm transition-colors",
-                      selectedDept === dept.id 
-                        ? "bg-primary/10 text-primary border border-primary/20" 
-                        : "hover:bg-muted"
-                    )}
-                  >
-                    <span>{dept.name}</span>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-xs font-medium",
-                      selectedDept === dept.id ? "bg-primary text-primary-foreground" : "bg-muted"
-                    )}>
-                      {dept.count}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-6 p-4 rounded-xl bg-success/5 border border-success/20">
-                <div className="flex items-center gap-2 text-success mb-2">
-                  <TrendingDown className="w-4 h-4" />
-                  <span className="text-sm font-medium">Wait Time Reduced</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Average wait time has decreased by 15% compared to last week.
-                </p>
-              </div>
+            <div className="bg-card rounded-2xl border border-border p-4 space-y-2">
+              <h3 className="font-bold text-sm uppercase text-muted-foreground mb-4 px-2">Departments</h3>
+              {["All Departments", "General Medicine", "Cardiology", "Orthopedics", "Neurology", "Pediatrics"].map((dept) => (
+                <button
+                  key={dept}
+                  onClick={() => setSelectedDept(dept)}
+                  className={cn(
+                    "w-full flex items-center justify-between p-3 rounded-xl text-sm font-medium transition-all",
+                    selectedDept === dept ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "hover:bg-muted text-foreground"
+                  )}
+                >
+                  {dept}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Queue List */}
           <div className="lg:col-span-3">
-            {/* Search and Filter */}
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-3 mb-6">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search by name or token..."
+                  className="w-full h-11 pl-10 pr-4 rounded-xl border border-border bg-card text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
-              <Button variant="outline" size="icon">
-                <Filter className="w-4 h-4" />
-              </Button>
             </div>
 
-            {/* Queue Cards */}
             <div className="space-y-3">
-              {filteredQueue.map((patient, index) => (
-                <div 
-                  key={patient.token}
-                  className={cn(
-                    "bg-card rounded-xl border p-4 transition-all hover:shadow-medium animate-slide-up",
-                    patient.status === "in-consultation" ? "border-primary/30 bg-primary/5" : "border-border"
-                  )}
-                  style={{ animationDelay: `${index * 0.05}s` }}
-                >
+              {filteredQueue.map((patient) => (
+                <div key={patient.token} className={cn(
+                  "bg-card rounded-2xl border p-4 transition-all hover:shadow-md",
+                  patient.status === "in-consultation" ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10" : "border-border"
+                )}>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
-                        <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
-                          <span className="font-display font-bold text-primary">{patient.token}</span>
-                        </div>
+                    <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center font-display font-bold text-primary text-lg">
+                        {patient.token}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{patient.name}</span>
-                          <span className="text-sm text-muted-foreground">({patient.age} yrs)</span>
+                          <span className="font-bold text-lg">{patient.name}</span>
+                          <span className="text-sm text-muted-foreground">({patient.age}y)</span>
                         </div>
-                        <div className="text-sm text-muted-foreground">{patient.department}</div>
+                        <div className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                          <Stethoscope className="w-3 h-3" /> {patient.department}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-8">
                       <div className="text-right hidden md:block">
-                        <div className="text-sm text-muted-foreground">Check-in</div>
-                        <div className="font-medium">{patient.checkInTime}</div>
-                      </div>
-                      <div className="text-right hidden md:block">
-                        <div className="text-sm text-muted-foreground">Wait Time</div>
-                        <div className={cn(
-                          "font-medium",
-                          patient.waitTime > 30 ? "text-critical" : 
-                          patient.waitTime > 15 ? "text-warning" : "text-success"
-                        )}>
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase">Wait Time</div>
+                        <div className={cn("font-bold", patient.waitTime > 30 ? "text-critical" : "text-success")}>
                           {patient.waitTime} min
                         </div>
                       </div>
-                      <div className={cn(
-                        "px-3 py-1.5 rounded-full text-xs font-medium border",
-                        priorityConfig[patient.priority as keyof typeof priorityConfig].color
-                      )}>
-                        {priorityConfig[patient.priority as keyof typeof priorityConfig].label}
+                      
+                      <div className={cn("px-3 py-1.5 rounded-full text-xs font-bold border", priorityConfig[patient.priority].color)}>
+                        {priorityConfig[patient.priority].label}
                       </div>
-                      {patient.status === "in-consultation" ? (
-                        <StatusBadge status="warning" label="In Consultation" size="sm" />
-                      ) : patient.status === "checked-in" ? (
-                        <StatusBadge status="available" label="Just Arrived" size="sm" />
-                      ) : (
-                        <Button variant="outline" size="sm">Call Next</Button>
-                      )}
+
+                      <div className="flex items-center gap-2">
+                        {patient.status === "in-consultation" ? (
+                          <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => handleStatusChange(patient.token, "completed")}>
+                            <UserCheck className="w-4 h-4 mr-2" /> Complete
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => handleStatusChange(patient.token, "in-consultation")}>
+                            Call Next
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               ))}
+              {filteredQueue.length === 0 && (
+                <div className="text-center py-20 bg-muted/20 rounded-3xl border border-dashed border-border">
+                  <p className="text-muted-foreground font-medium">No active patients found in this department.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
