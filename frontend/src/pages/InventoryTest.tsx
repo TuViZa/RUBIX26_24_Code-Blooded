@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Package, Clock, TrendingDown } from 'lucide-react';
+import { AlertTriangle, Package, Clock, TrendingDown, Bell, CheckCircle2 } from 'lucide-react';
 import io from 'socket.io-client';
+import axios from 'axios';
 
 const InventoryTest = () => {
   const [hospitals, setHospitals] = useState([]);
@@ -14,228 +15,175 @@ const InventoryTest = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Connect to socket for real-time alerts
+    // Establish socket connection for live system-wide alerts
     const socket = io('http://localhost:5000');
     
     socket.on('inventory_alert', (alert) => {
-      setAlerts(prev => [...prev, { ...alert, type: 'expiry', timestamp: new Date() }]);
-      console.log('🚨 Expiry Alert:', alert);
+      setAlerts(prev => [...prev, { ...alert, type: 'expiry', id: Date.now() }]);
     });
     
     socket.on('low_stock_alert', (alert) => {
-      setAlerts(prev => [...prev, { ...alert, type: 'low_stock', timestamp: new Date() }]);
-      console.log('⚠️ Low Stock Alert:', alert);
+      setAlerts(prev => [...prev, { ...alert, type: 'low_stock', id: Date.now() }]);
     });
 
-    return () => socket.disconnect();
+    return () => { socket.disconnect(); };
   }, []);
 
-  const fetchInventory = async (hospitalIndex) => {
-    setLoading(true);
+  const handleManualReorder = async (itemName: string) => {
     try {
-      // Get hospital data first
-      const heatmapResponse = await fetch('http://localhost:5000/api/hospital/heatmap-data');
-      const hospitals = await heatmapResponse.json();
-      
-      // For demo, we'll show mock inventory since we need actual MongoDB IDs
-      const mockInventory = [
-        {
-          name: 'Paracetamol',
-          stock: 500,
-          unit: 'tablets',
-          expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-          category: 'Medicine'
-        },
-        {
-          name: 'Oxygen Tanks',
-          stock: 20,
-          unit: 'cylinders',
-          expiryDate: null,
-          category: 'Equipment'
-        },
-        {
-          name: 'Vaccines',
-          stock: 100,
-          unit: 'doses',
-          expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-          category: 'Medicine'
-        }
-      ];
-      
-      setInventory(mockInventory);
-      setSelectedHospital(`Hospital #${hospitalIndex + 1}`);
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-    } finally {
-      setLoading(false);
+      // Logic for triggering a socket event or API call
+      alert(`Procurement request for ${itemName} has been broadcasted.`);
+      // Mock update to inventory
+      setInventory(prev => prev.map(item => 
+        item.name === itemName ? { ...item, stock: item.stock + 50 } : item
+      ));
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const fetchHospitals = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/hospital/heatmap-data');
-      const data = await response.json();
-      setHospitals(data);
+      const response = await axios.get('http://localhost:5000/api/hospital/heatmap-data');
+      setHospitals(response.data);
     } catch (error) {
       console.error('Error fetching hospitals:', error);
     }
   };
 
-  useEffect(() => {
-    fetchHospitals();
-  }, []);
-
-  const getStockStatus = (stock) => {
-    if (stock < 10) return { color: 'bg-red-500', text: 'Critical', icon: AlertTriangle };
-    if (stock < 50) return { color: 'bg-yellow-500', text: 'Low', icon: TrendingDown };
-    return { color: 'bg-green-500', text: 'Good', icon: Package };
+  const selectHospital = async (hospital: any, index: number) => {
+    setLoading(true);
+    setSelectedHospital(`Hospital #${index + 1}`);
+    // Simulate fetching specific hospital inventory
+    setTimeout(() => {
+      setInventory([
+        { name: 'Paracetamol', stock: 12, unit: 'packs', expiryDate: '2026-02-15', category: 'Medicine' },
+        { name: 'IV Kits', stock: 45, unit: 'units', expiryDate: null, category: 'Consumable' },
+        { name: 'Oxygen', stock: 5, unit: 'cylinders', expiryDate: null, category: 'Equipment' }
+      ]);
+      setLoading(false);
+    }, 800);
   };
 
-  const getExpiryStatus = (expiryDate) => {
-    if (!expiryDate) return { color: 'bg-gray-500', text: 'N/A' };
-    const daysUntilExpiry = Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-    if (daysUntilExpiry <= 7) return { color: 'bg-red-500', text: `${daysUntilExpiry} days`, icon: AlertTriangle };
-    if (daysUntilExpiry <= 30) return { color: 'bg-yellow-500', text: `${daysUntilExpiry} days`, icon: Clock };
-    return { color: 'bg-green-500', text: 'OK', icon: Package };
-  };
+  useEffect(() => { fetchHospitals(); }, []);
 
   return (
     
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold mb-2">Inventory Tracking System</h1>
-          <p className="text-muted-foreground">Real-time hospital inventory monitoring with alerts</p>
+        <div className="flex justify-between items-start mb-10">
+          <div>
+            <h1 className="font-display text-4xl font-black uppercase italic tracking-tighter">
+              Live <span className="text-primary">Inventory</span> Testbed
+            </h1>
+            <p className="text-muted-foreground font-medium">Socket-enabled real-time monitoring & manual override.</p>
+          </div>
+          <div className="bg-emerald-500/10 text-emerald-600 px-4 py-2 rounded-2xl flex items-center gap-2 border border-emerald-500/20">
+            <CheckCircle2 className="w-4 h-4" />
+            <span className="text-xs font-black uppercase">Socket Connected</span>
+          </div>
         </div>
 
-        {/* Real-time Alerts */}
+        {/* Live Alerts Tray */}
         {alerts.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-4">🚨 Real-time Alerts</h2>
-            <div className="space-y-2">
-              {alerts.slice(-5).map((alert, index) => (
-                <div key={index} className="p-4 rounded-lg border border-red-200 bg-red-50">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
-                    <span className="font-medium">{alert.hospitalName}</span>
-                    <Badge variant={alert.type === 'expiry' ? 'destructive' : 'secondary'}>
-                      {alert.type === 'expiry' ? 'Expiring' : 'Low Stock'}
-                    </Badge>
+          <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Bell className="w-4 h-4" /> System Alerts
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {alerts.slice(-3).map((alert) => (
+                <div key={alert.id} className="p-4 rounded-2xl border-2 border-red-100 bg-red-50/50 flex flex-col justify-between">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="font-black text-red-600 text-sm uppercase">{alert.hospitalName}</div>
+                      <div className="font-bold text-slate-800">{alert.itemName}</div>
+                    </div>
+                    <Badge variant="destructive" className="uppercase text-[9px]">Critical</Badge>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {alert.itemName}: {alert.type === 'expiry' 
-                      ? `Expires in ${alert.daysUntilExpiry} days`
-                      : `Only ${alert.stock} ${alert.unit} remaining`
-                    }
-                  </p>
+                  <p className="text-xs text-slate-500 mt-2 font-medium">Action: Reorder initiated via automation.</p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Hospital List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Select Hospital</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {hospitals.map((hospital, index) => (
-                  <Button
-                    key={index}
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => fetchInventory(index)}
+        <div className="grid lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-4">
+            <Card className="rounded-[2.5rem] border-none shadow-xl shadow-slate-200/50 overflow-hidden">
+              <CardHeader className="bg-slate-50 border-b pb-6">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400">Node Explorer</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar">
+                {hospitals.map((h, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selectHospital(h, i)}
+                    className={cn(
+                      "w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between",
+                      selectedHospital === `Hospital #${i + 1}` ? "border-primary bg-primary/5 shadow-inner" : "hover:bg-slate-50 border-transparent"
+                    )}
                   >
-                    Hospital #{index + 1}
-                    <span className="ml-auto text-xs text-gray-500">
-                      Lat: {hospital.lat.toFixed(3)}, Lng: {hospital.lng.toFixed(3)}
-                    </span>
-                  </Button>
+                    <div>
+                      <div className="font-black text-sm uppercase tracking-tight">Hospital Unit {i + 1}</div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Connection</div>
+                    </div>
+                    <Package className={cn("w-5 h-5", selectedHospital === `Hospital #${i + 1}` ? "text-primary" : "text-slate-300")} />
+                  </button>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
-          {/* Inventory Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Inventory Details</CardTitle>
-              {selectedHospital && (
-                <p className="text-sm text-muted-foreground">{selectedHospital}</p>
-              )}
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                  <p>Loading inventory...</p>
+          <div className="lg:col-span-8">
+            <Card className="rounded-[2.5rem] border-none shadow-xl shadow-slate-200/50 min-h-[500px]">
+              <CardHeader className="flex flex-row items-center justify-between border-b pb-6">
+                <div>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400">Manifest View</CardTitle>
+                  <div className="text-xl font-black italic uppercase mt-1 text-primary">{selectedHospital || "Select Unit"}</div>
                 </div>
-              ) : inventory.length > 0 ? (
-                <div className="space-y-4">
-                  {inventory.map((item, index) => {
-                    const stockStatus = getStockStatus(item.stock);
-                    const expiryStatus = getExpiryStatus(item.expiryDate);
-                    const StockIcon = stockStatus.icon;
-                    const ExpiryIcon = expiryStatus.icon;
-                    
-                    return (
-                      <div key={index} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-medium">{item.name}</h3>
-                          <Badge variant="outline">{item.category}</Badge>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="flex items-center gap-2">
-                            <StockIcon className="w-4 h-4" />
-                            <span className="text-sm">Stock: {item.stock} {item.unit}</span>
-                            <div className={`w-2 h-2 rounded-full ${stockStatus.color}`}></div>
+              </CardHeader>
+              <CardContent className="p-8">
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center h-64 gap-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-primary"></div>
+                    <span className="font-black text-xs uppercase tracking-widest text-slate-400">Syncing Data...</span>
+                  </div>
+                ) : inventory.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {inventory.map((item, idx) => (
+                      <div key={idx} className="p-6 rounded-3xl bg-slate-50 border border-slate-100 flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-4">
+                            <h3 className="font-black text-lg uppercase italic tracking-tighter">{item.name}</h3>
+                            <Badge className="bg-white text-slate-500 border-slate-200 uppercase text-[9px]">{item.category}</Badge>
                           </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <ExpiryIcon className="w-4 h-4" />
-                            <span className="text-sm">Expires: {expiryStatus.text}</span>
-                            <div className={`w-2 h-2 rounded-full ${expiryStatus.color}`}></div>
+                          <div className="flex items-center gap-6">
+                            <div>
+                              <div className="text-[9px] font-black text-slate-400 uppercase">Available</div>
+                              <div className={cn("text-2xl font-black", item.stock < 15 ? "text-red-500" : "text-slate-800")}>
+                                {item.stock} <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
+                        <Button 
+                          onClick={() => handleManualReorder(item.name)}
+                          className="mt-6 rounded-2xl font-black uppercase text-[10px] tracking-widest py-6"
+                        >
+                          Manual Restock
+                        </Button>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>Select a hospital to view inventory</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <TrendingDown className="w-16 h-16 mx-auto mb-4 text-slate-200" />
+                    <p className="font-black text-xs uppercase tracking-widest text-slate-400">No active manifest selected</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-
-        {/* System Status */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>System Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-500">{hospitals.length}</div>
-                <div className="text-sm text-muted-foreground">Hospitals Connected</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-500">3</div>
-                <div className="text-sm text-muted-foreground">Items per Hospital</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-500">{alerts.length}</div>
-                <div className="text-sm text-muted-foreground">Active Alerts</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     
   );
