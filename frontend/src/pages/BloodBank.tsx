@@ -1,261 +1,323 @@
+import React, { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { 
-  Droplets, 
-  Plus, 
-  Share2, 
-  AlertTriangle,
-  Users,
-  Building2,
-  ArrowRightLeft
+  Droplets, Plus, AlertTriangle, Building2, ArrowRightLeft, 
+  Activity, ChevronDown, Send, ClipboardCheck, Megaphone, 
+  BellRing, X, Calendar, Clock, ChevronUp
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, 
+  DropdownMenuTrigger, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
-const bloodTypes = [
-  { type: "A+", units: 45, demand: 38, status: "normal" },
-  { type: "A-", units: 12, demand: 15, status: "warning" },
-  { type: "B+", units: 38, demand: 32, status: "normal" },
-  { type: "B-", units: 8, demand: 12, status: "critical" },
-  { type: "AB+", units: 22, demand: 18, status: "normal" },
-  { type: "AB-", units: 5, demand: 6, status: "warning" },
-  { type: "O+", units: 52, demand: 55, status: "warning" },
-  { type: "O-", units: 15, demand: 25, status: "critical" },
-];
-
-const recentDonations = [
-  { id: "D-001", donor: "Anil Mehta", bloodType: "O+", units: 1, date: "Today, 10:30 AM", status: "processed" },
-  { id: "D-002", donor: "Priya Sharma", bloodType: "A+", units: 1, date: "Today, 09:15 AM", status: "testing" },
-  { id: "D-003", donor: "Rahul Singh", bloodType: "B+", units: 1, date: "Yesterday", status: "processed" },
-  { id: "D-004", donor: "Kavitha Nair", bloodType: "AB+", units: 1, date: "Yesterday", status: "processed" },
-];
-
-const nearbyHospitals = [
-  { name: "City General Hospital", distance: "2.5 km", bloodTypes: ["O-", "B-"], units: 8, status: "available" },
-  { name: "Metro Medical Center", distance: "4.2 km", bloodTypes: ["A-", "O-"], units: 12, status: "available" },
-  { name: "Regional Health Hub", distance: "6.8 km", bloodTypes: ["B-", "AB-"], units: 5, status: "limited" },
-];
+interface BloodBatch {
+  id: string;
+  units: number;
+  entryDate: Date;
+  expiryDate: Date;
+}
 
 const BloodBank = () => {
-  const totalUnits = bloodTypes.reduce((acc, bt) => acc + bt.units, 0);
-  const criticalTypes = bloodTypes.filter(bt => bt.status === "critical").length;
+  // 1. Core State: Inventory with Batch Tracking
+  const [inventory, setInventory] = useState<Record<string, { demand: number; batches: BloodBatch[] }>>({
+    "A+": { demand: 38, batches: [{ id: "BAT-001", units: 45, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+    "A-": { demand: 15, batches: [{ id: "BAT-002", units: 12, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+    "B+": { demand: 32, batches: [{ id: "BAT-003", units: 38, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+    "B-": { demand: 12, batches: [{ id: "BAT-004", units: 8, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+    "AB+": { demand: 18, batches: [{ id: "BAT-005", units: 22, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+    "AB-": { demand: 6, batches: [{ id: "BAT-006", units: 5, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+    "O+": { demand: 55, batches: [{ id: "BAT-007", units: 52, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+    "O-": { demand: 25, batches: [{ id: "BAT-008", units: 15, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+  });
+
+  const [systemAlert, setSystemAlert] = useState<{type: string, message: string} | null>(null);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  
+  const [incomingRequests, setIncomingRequests] = useState([
+    { id: "REQ-9901", hospital: "City General", type: "O-", units: 2, priority: "emergency" },
+    { id: "REQ-9902", hospital: "Metro Medical", type: "B+", units: 5, priority: "standard" },
+  ]);
+
+  const [logs, setLogs] = useState([
+    { id: "TX-402", action: "INBOUND", type: "A+", units: 1, time: "10:30 AM" },
+  ]);
+
+  // --- Logic Handlers ---
+
+  const getTotalUnits = (type: string) => inventory[type].batches.reduce((sum, b) => sum + b.units, 0);
+
+  const getStatus = (type: string) => {
+    const units = getTotalUnits(type);
+    const ratio = units / inventory[type].demand;
+    if (ratio < 0.6) return "critical";
+    if (ratio < 1.0) return "warning";
+    return "normal";
+  };
+
+  const alertMessages = useMemo(() => {
+    return Object.keys(inventory).map(type => {
+      const status = getStatus(type);
+      if (status === "critical") return { type, level: "critical", msg: `URGENT: ${type} group is critically low. Manual entry or network request required.` };
+      if (status === "warning") return { type, level: "warning", msg: `Notice: Encouraging ${type} donations to stabilize local demand.` };
+      return null;
+    }).filter(Boolean);
+  }, [inventory]);
+
+  const addLog = (action: "INBOUND" | "OUTBOUND", type: string, units: number) => {
+    setLogs(prev => [{
+      id: `TX-${Math.floor(100 + Math.random() * 900)}`,
+      action, type, units,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }, ...prev]);
+  };
+
+  const handleInbound = (bloodType: string, amount: number) => {
+    const newBatch: BloodBatch = {
+      id: `BAT-${Math.floor(Math.random() * 9000 + 1000)}`,
+      units: amount,
+      entryDate: new Date(),
+      expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000)
+    };
+    setInventory(prev => ({
+      ...prev,
+      [bloodType]: { ...prev[bloodType], batches: [...prev[bloodType].batches, newBatch] }
+    }));
+    addLog("INBOUND", bloodType, amount);
+  };
+
+  const handleOutbound = (reqId: string, status: 'accept' | 'reject') => {
+    const request = incomingRequests.find(r => r.id === reqId);
+    if (status === 'accept' && request) {
+      const type = request.type;
+      setInventory(prev => {
+        const unitsToDeduct = request.units;
+        const updatedBatches = [...prev[type].batches].sort((a,b) => a.expiryDate.getTime() - b.expiryDate.getTime());
+        if (updatedBatches[0]) updatedBatches[0].units = Math.max(0, updatedBatches[0].units - unitsToDeduct);
+        return { ...prev, [type]: { ...prev[type], batches: updatedBatches.filter(b => b.units > 0) } };
+      });
+      addLog("OUTBOUND", type, request.units);
+    }
+    setIncomingRequests(prev => prev.filter(r => r.id !== reqId));
+  };
+
+  const triggerEmergencyBroadcast = (bloodType: string) => {
+    setSystemAlert({
+      type: bloodType,
+      message: `🚨 EMERGENCY BROADCAST: Critical shortage of ${bloodType}. Priority node dispatch active.`
+    });
+    setTimeout(() => setSystemAlert(null), 10000);
+  };
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
-          <div>
-            <h1 className="font-display text-3xl font-bold mb-2">Blood Bank Management</h1>
-            <p className="text-muted-foreground">Inventory tracking and inter-hospital sharing</p>
+      {/* 🚨 Emergency System Banner */}
+      {systemAlert && (
+        <div className="bg-critical py-3 px-4 flex items-center justify-between sticky top-0 z-50 animate-pulse shadow-xl">
+          <div className="flex items-center gap-3 text-white">
+            <BellRing className="w-5 h-5" />
+            <span className="font-bold text-sm uppercase tracking-wider">{systemAlert.message}</span>
           </div>
-          <div className="flex items-center gap-3 mt-4 lg:mt-0">
-            <Button variant="outline" size="sm">
-              <Share2 className="w-4 h-4 mr-2" />
-              Request from Network
-            </Button>
-            <Button variant="hero" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Donation
-            </Button>
+          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10" onClick={() => setSystemAlert(null)}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 gap-4">
+          <div>
+            <h1 className="font-display text-3xl font-bold text-foreground tracking-tight">Blood Bank Operations</h1>
+            <p className="text-muted-foreground">Unified logistics: Expiry tracking, network requests, and emergency dispatch</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            {/* EMERGENCY FEATURE */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="border-critical text-critical hover:bg-critical/5 font-bold shadow-sm">
+                  <Megaphone className="w-4 h-4 mr-2" /> Broadcast Alert
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="p-2 text-[10px] font-bold text-muted-foreground uppercase">Trigger Network Alert</div>
+                <DropdownMenuSeparator />
+                {Object.keys(inventory).map(type => (
+                  <DropdownMenuItem key={type} onClick={() => triggerEmergencyBroadcast(type)} className="text-critical font-bold cursor-pointer">
+                    Alert {type} Shortage
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* REQUEST STOCK FEATURE */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/5 shadow-sm">
+                  <Send className="w-4 h-4 mr-2" /> Request Stock <ChevronDown className="w-4 h-4 ml-1 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="p-2 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">Pull Batch from Network</div>
+                <DropdownMenuSeparator />
+                {Object.keys(inventory).map(type => (
+                  <DropdownMenuItem key={type} onClick={() => handleInbound(type, 5)} className="cursor-pointer flex justify-between">
+                    <span className="font-bold">{type} Group</span>
+                    <span className="text-[10px] text-primary font-mono">+5 Units</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="hero" size="sm">
+                  <Plus className="w-4 h-4 mr-2" /> Direct Entry <ChevronDown className="w-4 h-4 ml-1 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="p-2 text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2"><ClipboardCheck className="w-3 h-3" /> Manual Registration</div>
+                <DropdownMenuSeparator />
+                <div className="grid grid-cols-2 gap-1 p-1">
+                  {Object.keys(inventory).map(type => (
+                    <DropdownMenuItem key={type} onClick={() => handleInbound(type, 1)} className="flex justify-between cursor-pointer">
+                      {type} <span className="text-success text-[10px] font-bold">+1U</span>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* INCOMING REQUESTS (OUTBOUND) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="relative">
+                  <ArrowRightLeft className="w-4 h-4 mr-2" /> Incoming
+                  {incomingRequests.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-critical text-white text-[10px] rounded-full flex items-center justify-center animate-pulse shadow-md font-bold">
+                      {incomingRequests.length}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 p-2">
+                <h3 className="text-[10px] font-bold text-muted-foreground uppercase p-2 tracking-widest">External Fulfillment Required</h3>
+                {incomingRequests.map(req => (
+                  <div key={req.id} className="p-3 bg-muted/30 rounded-lg mb-2 border border-border/50">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="text-sm font-bold">{req.hospital}</p>
+                        <p className="text-[10px] font-mono opacity-60 uppercase tracking-tighter">{req.id}</p>
+                      </div>
+                      <span className="bg-critical text-white text-[10px] px-2 py-0.5 rounded font-bold">{req.type}: {req.units}U</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-7 flex-1 bg-success hover:bg-success/90" onClick={() => handleOutbound(req.id, 'accept')}>Approve</Button>
+                      <Button size="sm" variant="ghost" className="h-7 flex-1 text-critical" onClick={() => handleOutbound(req.id, 'reject')}>Reject</Button>
+                    </div>
+                  </div>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <StatCard
-            title="Total Units"
-            value={totalUnits}
-            icon={Droplets}
-            variant="primary"
-          />
-          <StatCard
-            title="Donations Today"
-            value={12}
-            icon={Users}
-            variant="success"
-            trend={{ value: 20, isPositive: true }}
-          />
-          <StatCard
-            title="Critical Types"
-            value={criticalTypes}
-            subtitle="B-, O- running low"
-            icon={AlertTriangle}
-            variant="critical"
-          />
-          <StatCard
-            title="Network Hospitals"
-            value={15}
-            subtitle="Connected for sharing"
-            icon={Building2}
-            variant="accent"
-          />
+        {/* 📢 Notification Area (Black Text) */}
+        <div className="mb-8 space-y-2">
+          {alertMessages.map((alert, idx) => (
+            <div key={idx} className={cn(
+              "p-3 rounded-lg border border-l-4 flex items-center gap-3 animate-in slide-in-from-left duration-300",
+              alert?.level === "critical" ? "bg-critical/10 border-critical" : "bg-warning/10 border-warning"
+            )}>
+              <AlertTriangle className={cn("w-5 h-5 shrink-0", alert?.level === "critical" ? "text-critical" : "text-warning")} />
+              <p className="text-sm font-extrabold text-black tracking-tight">{alert?.msg}</p>
+            </div>
+          ))}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Blood Inventory */}
-          <div className="lg:col-span-2 bg-card rounded-2xl border border-border p-6">
-            <h2 className="font-display text-lg font-semibold mb-6">Blood Inventory</h2>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {bloodTypes.map((bt) => (
-                <div
-                  key={bt.type}
-                  className={cn(
-                    "p-4 rounded-xl border transition-all hover:shadow-medium",
-                    bt.status === "critical" ? "bg-critical/5 border-critical/20" :
-                    bt.status === "warning" ? "bg-warning/5 border-warning/20" :
-                    "bg-card border-border"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center font-display font-bold",
-                      bt.status === "critical" ? "bg-critical/10 text-critical" :
-                      bt.status === "warning" ? "bg-warning/10 text-warning" :
-                      "bg-primary/10 text-primary"
-                    )}>
-                      {bt.type}
-                    </div>
-                    <StatusBadge 
-                      status={bt.status as any} 
-                      size="sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Available</span>
-                      <span className="font-medium">{bt.units} units</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Weekly Demand</span>
-                      <span className="font-medium">{bt.demand} units</span>
-                    </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className={cn(
-                          "h-full rounded-full",
-                          bt.status === "critical" ? "bg-critical" :
-                          bt.status === "warning" ? "bg-warning" : "bg-success"
-                        )}
-                        style={{ width: `${Math.min((bt.units / bt.demand) * 100, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" /> Live Inventory Monitor
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.keys(inventory).map(type => {
+                const total = getTotalUnits(type);
+                const status = getStatus(type);
+                const isExpanded = expandedGroup === type;
 
-          {/* Recent Donations */}
-          <div className="bg-card rounded-2xl border border-border p-6">
-            <h2 className="font-display text-lg font-semibold mb-4">Recent Donations</h2>
-            <div className="space-y-3">
-              {recentDonations.map((donation) => (
-                <div 
-                  key={donation.id}
-                  className="p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{donation.donor}</span>
-                    <span className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold",
-                      "bg-critical/10 text-critical"
-                    )}>
-                      {donation.bloodType}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{donation.date}</span>
-                    <StatusBadge 
-                      status={donation.status === "processed" ? "available" : "reserved"}
-                      label={donation.status === "processed" ? "Processed" : "Testing"}
-                      size="sm"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button variant="ghost" className="w-full mt-4">
-              View All Donations
-            </Button>
-          </div>
-        </div>
-
-        {/* Network Sharing */}
-        <div className="mt-6 bg-card rounded-2xl border border-border p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="font-display text-lg font-semibold">Inter-Hospital Network</h2>
-              <p className="text-sm text-muted-foreground">Available blood units from nearby hospitals</p>
-            </div>
-            <Button variant="outline" size="sm">
-              <ArrowRightLeft className="w-4 h-4 mr-2" />
-              View All Hospitals
-            </Button>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            {nearbyHospitals.map((hospital) => (
-              <div 
-                key={hospital.name}
-                className="p-4 rounded-xl border border-border hover:border-primary/30 hover:shadow-medium transition-all"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h4 className="font-medium">{hospital.name}</h4>
-                    <p className="text-sm text-muted-foreground">{hospital.distance} away</p>
-                  </div>
-                  <StatusBadge 
-                    status={hospital.status === "available" ? "available" : "warning"}
-                    label={hospital.status === "available" ? "Available" : "Limited"}
-                    size="sm"
-                  />
-                </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm text-muted-foreground">Types:</span>
-                  {hospital.bloodTypes.map((bt) => (
-                    <span 
-                      key={bt}
-                      className="px-2 py-0.5 rounded bg-critical/10 text-critical text-xs font-medium"
+                return (
+                  <div key={type} className={cn(
+                    "rounded-xl border transition-all duration-300 overflow-hidden",
+                    status === "critical" ? "bg-critical/5 border-critical/30 ring-1 ring-critical/20" : "bg-card shadow-sm border-border"
+                  )}>
+                    <div 
+                      className="p-4 flex items-center justify-between cursor-pointer hover:bg-muted/30"
+                      onClick={() => setExpandedGroup(isExpanded ? null : type)}
                     >
-                      {bt}
-                    </span>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">
-                    <span className="font-medium">{hospital.units}</span>
-                    <span className="text-muted-foreground"> units available</span>
-                  </span>
-                  <Button variant="outline" size="sm">Request</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm",
+                          status === "critical" ? "bg-critical text-white" : "bg-primary/10 text-primary"
+                        )}>
+                          {type}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold leading-none mb-1">{total} Units</p>
+                          <StatusBadge status={status as any} size="sm" />
+                        </div>
+                      </div>
+                      {isExpanded ? <ChevronUp className="w-4 h-4 opacity-50" /> : <ChevronDown className="w-4 h-4 opacity-50" />}
+                    </div>
 
-        {/* Emergency Alert */}
-        <div className="mt-6 p-6 rounded-2xl bg-critical/5 border border-critical/20">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-critical/10 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-6 h-6 text-critical" />
+                    {isExpanded && (
+                      <div className="px-4 pb-4 space-y-2 animate-in slide-in-from-top duration-200">
+                        <DropdownMenuSeparator className="mb-2 opacity-50" />
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Active Batches (Expiry tracking)</p>
+                        {inventory[type].batches.map((batch) => (
+                          <div key={batch.id} className="flex justify-between items-center bg-muted/40 p-2 rounded text-[11px] border border-border/50">
+                            <span className="font-mono font-bold text-muted-foreground">{batch.id}</span>
+                            <div className="text-right">
+                              <p className="font-bold text-primary">EXP: {batch.expiryDate.toLocaleDateString()}</p>
+                              <p className="text-[9px] opacity-60 font-medium">Batch Qty: {batch.units}U</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="flex-1">
-              <h3 className="font-display font-semibold text-critical mb-1">Critical Blood Shortage Alert</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                O- and B- blood types are critically low. Consider organizing an emergency blood donation drive 
-                or requesting from the inter-hospital network.
-              </p>
-              <div className="flex gap-3">
-                <Button variant="accent" size="sm">
-                  Organize Blood Drive
-                </Button>
-                <Button variant="outline" size="sm">
-                  Send Network Alert
-                </Button>
-              </div>
+          </div>
+
+          <div className="bg-card rounded-2xl border border-border p-6 shadow-sm flex flex-col h-full">
+            <h2 className="font-display text-lg font-semibold mb-4 text-primary flex items-center gap-2">
+              <Activity className="w-5 h-5" /> Operational Ledger
+            </h2>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar flex-1">
+              {logs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-muted/10">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold shadow-sm",
+                      log.action === "INBOUND" ? "bg-success/20 text-success" : "bg-blue-500/20 text-blue-500"
+                    )}>
+                      {log.type}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono text-muted-foreground leading-none mb-1">{log.id}</p>
+                      <p className="text-[11px] font-bold tracking-tight">{log.action}</p>
+                    </div>
+                  </div>
+                  <p className={cn("text-xs font-bold", log.action === "INBOUND" ? "text-success" : "text-blue-500")}>
+                    {log.action === "INBOUND" ? "+" : "-"}{log.units}U
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
