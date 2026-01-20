@@ -11,9 +11,9 @@ export const SimpleHeader = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
-            {/* New Logo Container using the logo.png image */}
+            {/* New Logo Container using curanet image */}
             <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-medium border-2 border-teal-400 bg-white">
-              <img src="/logo.png" alt="CuraNet Logo" className="w-full h-full object-cover" />
+              <img src="/curanet.jpeg" alt="CuraNet Logo" className="w-full h-full object-cover" />
             </div>
             
             {/* Updated Branding with Lobster Font */}
