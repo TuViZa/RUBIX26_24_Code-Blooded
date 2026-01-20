@@ -3,34 +3,118 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, FileText, Heart, User, Clock, AlertTriangle, Phone, MapPin } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { mediSyncServices } from '@/lib/firebase-services';
+import { useEmergencyResponse } from '@/hooks/useEmergencyResponse';
+import { EmergencyPanel } from '@/components/emergency/EmergencyPanel';
 
 export const PatientPortal = () => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [appointments, setAppointments] = useState([]);
+  const [medicalRecords, setMedicalRecords] = useState([]);
+  const [showEmergencyTracking, setShowEmergencyTracking] = useState(false);
+  
+  const { 
+    triggerEmergency, 
+    clearEmergency, 
+    isLoading: emergencyLoading, 
+    currentAlert, 
+    ambulanceLocation,
+    victimLocation,
+    error
+  } = useEmergencyResponse();
 
-  const handleBookAppointment = () => {
+  // Load patient data from Firebase on mount
+  useEffect(() => {
+    const loadPatientData = async () => {
+      if (!user) return;
+      
+      try {
+        // Load patient appointments
+        const patientData = await mediSyncServices.patients.get(user.id);
+        if (patientData && patientData.appointments) {
+          setAppointments(patientData.appointments);
+        } else {
+          // Set default appointments
+          const defaultAppointments = [
+            { id: 1, doctor: "Dr. Sarah Johnson", date: "2024-01-25", time: "10:00 AM", type: "General Checkup" },
+            { id: 2, doctor: "Dr. Michael Chen", date: "2024-01-28", time: "2:30 PM", type: "Cardiology Consultation" },
+          ];
+          setAppointments(defaultAppointments);
+        }
+
+        // Load medical records
+        if (patientData && patientData.medicalRecords) {
+          setMedicalRecords(patientData.medicalRecords);
+        } else {
+          // Set default medical records
+          const defaultRecords = [
+            { id: 1, date: "2024-01-15", diagnosis: "Hypertension", doctor: "Dr. Sarah Johnson", notes: "Blood pressure elevated, monitor diet" },
+            { id: 2, date: "2024-01-10", diagnosis: "Annual Physical", doctor: "Dr. Michael Chen", notes: "Overall health good, maintain exercise routine" },
+          ];
+          setMedicalRecords(defaultRecords);
+        }
+      } catch (error) {
+        console.error('Error loading patient data:', error);
+        toast.error('Failed to load patient data');
+      }
+    };
+
+    loadPatientData();
+  }, [user]);
+
+  const handleBookAppointment = async () => {
+    if (!user) return;
+    
     setIsLoading(true);
     toast.loading('Opening appointment scheduler...');
     
-    setTimeout(() => {
+    try {
+      // Create appointment in Firebase
+      const newAppointment = {
+        id: Date.now(),
+        doctor: "Dr. Sarah Johnson",
+        date: new Date().toISOString().split('T')[0],
+        time: "10:00 AM",
+        type: "General Checkup",
+        status: "scheduled",
+        patientId: user.id,
+        createdAt: new Date().toISOString()
+      };
+
+      await mediSyncServices.patients.update(user.id, {
+        appointments: [...appointments, newAppointment]
+      });
+      
       setIsLoading(false);
-      toast.success('Appointment scheduler opened', {
-        description: 'You can now book your appointment with available doctors',
+      toast.success('Appointment scheduled successfully', {
+        description: 'Your appointment has been booked with Dr. Sarah Johnson',
         action: {
-          label: 'View Doctors',
-          onClick: () => console.log('Navigate to doctors list')
+          label: 'View Appointment',
+          onClick: () => console.log('Navigate to appointment details')
         }
       });
-    }, 1500);
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      setIsLoading(false);
+      toast.error('Failed to book appointment');
+    }
   };
 
-  const handleViewRecords = () => {
+  const handleViewRecords = async () => {
+    if (!user) return;
+    
     setIsLoading(true);
     toast.loading('Loading medical records...');
     
-    setTimeout(() => {
+    try {
+      // Update patient record access
+      await mediSyncServices.patients.update(user.id, {
+        lastRecordAccess: new Date().toISOString()
+      });
+      
       setIsLoading(false);
       toast.success('Medical records loaded', {
         description: 'Your complete medical history is now available',
@@ -39,7 +123,11 @@ export const PatientPortal = () => {
           onClick: () => console.log('Navigate to detailed records')
         }
       });
-    }, 1200);
+    } catch (error) {
+      console.error('Error loading records:', error);
+      setIsLoading(false);
+      toast.error('Failed to load medical records');
+    }
   };
 
   const handleViewSummary = () => {
@@ -58,29 +146,13 @@ export const PatientPortal = () => {
     }, 1000);
   };
 
-  const handleEmergency = () => {
-    toast.error('Emergency Services Activated', {
-      description: 'Connecting you to nearest emergency services...',
-      duration: 10000,
-      action: {
-        label: 'Call 911',
-        onClick: () => {
-          window.open('tel:911');
-          toast.success('Dialing 911...', { description: 'Emergency services have been contacted' });
-        }
-      }
-    });
-
-    // Simulate emergency response
-    setTimeout(() => {
-      toast.info('Emergency response dispatched', {
-        description: 'Nearest ambulance is being dispatched to your location',
-        action: {
-          label: 'Track Ambulance',
-          onClick: () => console.log('Navigate to ambulance tracking')
-        }
-      });
-    }, 2000);
+  const handleEmergency = async () => {
+    try {
+      await triggerEmergency();
+      setShowEmergencyTracking(true);
+    } catch (err) {
+      // Error handled by hook
+    }
   };
 
   const handleAppointmentClick = (doctor: string, time: string) => {
@@ -184,27 +256,40 @@ export const PatientPortal = () => {
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer hover-lift border-2 border-red-200 bg-gradient-to-br from-red-50 to-orange-50">
             <CardHeader className="pb-3">
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-2">
+              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-2 animate-pulse-slow">
                 <AlertTriangle className="w-6 h-6 text-red-600" />
               </div>
               <CardTitle className="text-lg">Emergency</CardTitle>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Quick access to emergency services
+                Quick access to emergency services with real-time ambulance tracking
               </CardDescription>
               <Button 
                 variant="destructive" 
-                className="w-full mt-3" 
+                className="w-full mt-3 animate-pulse-slow" 
                 size="sm"
                 onClick={handleEmergency}
+                disabled={emergencyLoading || isLoading}
               >
-                Emergency
+                {emergencyLoading ? 'Activating...' : '🚨 Emergency SOS'}
               </Button>
             </CardContent>
           </Card>
+          
+          {/* Emergency Tracking Panel */}
+          {showEmergencyTracking && currentAlert && ambulanceLocation && (
+            <EmergencyPanel
+              alert={currentAlert.alert}
+              ambulance={ambulanceLocation}
+              onClose={() => {
+                setShowEmergencyTracking(false);
+                clearEmergency();
+              }}
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

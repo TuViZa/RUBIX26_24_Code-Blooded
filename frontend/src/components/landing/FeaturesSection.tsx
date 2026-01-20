@@ -4,7 +4,6 @@ import {
   ClipboardList, 
   Building2, 
   Package, 
-  LayoutDashboard,
   Droplets,
   ArrowRight,
   Lightbulb,
@@ -14,7 +13,10 @@ import {
   Map,
   Trash2,
   Ambulance,
-  Bug
+  Bug,
+  Heart,
+  Stethoscope,
+  Monitor
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -22,122 +24,128 @@ import { cn } from "@/lib/utils";
 const features = [
   {
     icon: Users,
-    title: "Dynamic OPD Queue Management",
-    description: "Real-time patient check-in prioritization using historical averages to reduce wait times and congestion.",
-    color: "primary",
+    title: "Patient Queue Management",
+    description: "Intelligent patient triage and flow optimization using historical data to reduce wait times and improve care delivery.",
+    color: "teal",
     link: "/opd-queue"
   },
   {
     icon: Bed,
-    title: "Live Bed Availability",
-    description: "Current bed occupancy by department with admission/discharge updates for immediate visibility.",
-    color: "accent",
+    title: "Real-Time Bed Management",
+    description: "Live bed availability tracking with smart allocation algorithms for optimal patient placement and visibility.",
+    color: "cyan",
     link: "/beds"
   },
   {
     icon: ClipboardList,
-    title: "Rule-Based Admission Workflow",
-    description: "Guided intake process matching patient requirements to available beds using predefined rules.",
-    color: "success",
+    title: "Smart Patient Admissions",
+    description: "AI-powered admission workflow that matches patient clinical needs with available hospital resources automatically.",
+    color: "blue",
     link: "/admission"
   },
   {
     icon: Building2,
-    title: "Inter-Hospital Capacity Sharing",
-    description: "Anonymized bed availability and patient load data APIs for central city health dashboard integration.",
-    color: "primary",
+    title: "Hospital Network Coordination",
+    description: "Seamless inter-hospital resource sharing and patient transfer management across the central healthcare network.",
+    color: "teal",
     link: "/network"
   },
   {
     icon: Package,
-    title: "Inventory Usage Tracking",
-    description: "Medicine and consumable monitoring with low-stock alerts and consumption trend analysis.",
-    color: "warning",
+    title: "Medical Supply Tracking",
+    description: "Comprehensive inventory management for pharmaceuticals and equipment with predictive low-stock alerting.",
+    color: "orange",
     link: "/inventory"
   },
   {
     icon: Droplets,
-    title: "Blood Bank Management",
-    description: "Track blood inventory, manage donations, and share availability across the hospital network.",
-    color: "critical",
+    title: "Blood Bank Operations",
+    description: "Advanced blood inventory management with cross-hospital sharing and emergency donor coordination.",
+    color: "red",
     link: "/blood-bank"
   },
   {
     icon: Lightbulb,
-    title: "Micro-Interventions",
-    description: "AI-driven small-scale interventions to optimize patient flow and resource allocation in real-time.",
-    color: "primary",
+    title: "Clinical Decision Support",
+    description: "AI-driven insights and micro-interventions for optimized patient care pathways and resource utilization.",
+    color: "teal",
     link: "/interventions"
   },
   {
     icon: GitBranch,
-    title: "City Patient Flow Analytics",
-    description: "Track patient movement patterns across hospitals to identify bottlenecks and optimize referral networks.",
-    color: "accent",
+    title: "Patient Flow Analytics",
+    description: "Advanced analytics tracking patient journeys across the city to identify bottlenecks and optimize referral networks.",
+    color: "cyan",
     link: "/patient-flow"
   },
   {
     icon: AlertTriangle,
-    title: "Early Load Detection",
-    description: "Predictive analytics to anticipate hospital capacity issues before they impact patient care.",
-    color: "warning",
+    title: "Early Warning Systems",
+    description: "Predictive analytics for capacity planning and emergency preparedness with real-time alerting for hospital loads.",
+    color: "orange",
     link: "/load-detection"
   },
   {
     icon: Shield,
-    title: "Resilience Index",
-    description: "Comprehensive metrics to measure hospital system preparedness and response capabilities.",
-    color: "success",
+    title: "Healthcare Resilience Metrics",
+    description: "Comprehensive dashboard measuring system preparedness, response capabilities, and operational health index.",
+    color: "blue",
     link: "/resilience"
   },
   {
     icon: Map,
-    title: "City Health Heatmap",
-    description: "Geographic visualization of health metrics and resource distribution across the city.",
-    color: "critical",
+    title: "Regional Health Intelligence",
+    description: "Geospatial visualization of healthcare resources, disease patterns, and population health metrics on a city heatmap.",
+    color: "red",
     link: "/heatmap"
   },
   {
     icon: Trash2,
-    title: "Resource Decay & Waste Predictor",
-    description: "Predicts unused or expiring resources by tracking usage velocity and flags medicines/equipment at risk of wastage.",
-    color: "warning",
+    title: "Resource Optimization",
+    description: "Smart algorithms to minimize medical waste by predicting expirations and tracking usage velocity.",
+    color: "orange",
     link: "/resource-decay"
   },
   {
     icon: Ambulance,
-    title: "Dynamic Ambulance Detection",
-    description: "Real-time tracking and optimization of ambulance fleet deployment for emergency response efficiency.",
-    color: "primary",
+    title: "Emergency Response Coordination",
+    description: "Real-time ambulance fleet management with intelligent dispatch and hospital routing systems for rapid response.",
+    color: "teal",
     link: "/ambulance-detection"
   },
   {
     icon: Bug,
-    title: "Disease Outbreak Detection",
-    description: "Annual and seasonal disease pattern analysis to predict and prepare for potential health outbreaks.",
-    color: "critical",
+    title: "Public Health Surveillance",
+    description: "Disease pattern analysis and outbreak prediction with automated response coordination for seasonal health trends.",
+    color: "red",
     link: "/outbreak-detection"
   },
 ];
 
 const colorMap = {
-  primary: "bg-primary/10 text-primary",
-  accent: "bg-accent/10 text-accent",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  critical: "bg-critical/10 text-critical",
+  teal: "bg-teal-500/10 text-teal-400 border-teal-500/20 hover:bg-teal-500/20",
+  cyan: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20",
+  blue: "bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20",
+  orange: "bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20",
+  red: "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20",
 };
 
 export const FeaturesSection = () => {
   return (
-    <section className="py-24 bg-background">
+    <section className="py-24 bg-gradient-to-b from-slate-900 to-slate-800">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="font-display text-3xl md:text-4xl font-bold mb-4">
-            Comprehensive Hospital Management
+          {/* Healthcare Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-500/10 border border-teal-400/30 text-teal-300 mb-6 animate-fade-in">
+            <Stethoscope className="w-4 h-4" />
+            <span className="text-sm font-medium">Comprehensive Healthcare Solutions</span>
+          </div>
+          
+          <h2 className="font-sans text-3xl md:text-4xl font-bold text-white mb-4">
+            Advanced Medical Management
           </h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Everything you need to optimize hospital operations and improve patient care
+          <p className="text-teal-200 max-w-2xl mx-auto text-lg">
+            Cutting-edge technology solutions designed to optimize every aspect of healthcare delivery and patient care within the CuraNet ecosystem.
           </p>
         </div>
 
@@ -146,8 +154,11 @@ export const FeaturesSection = () => {
             <Link
               key={feature.title}
               to={feature.link}
-              className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/30 transition-all duration-300 hover:shadow-medium animate-slide-up"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className={cn(
+                "group p-6 rounded-2xl bg-slate-800/50 backdrop-blur-sm border transition-all duration-300 hover:shadow-xl animate-slide-up",
+                colorMap[feature.color as keyof typeof colorMap]
+              )}
+              style={{ animationDelay: `${index * 0.05}s` }}
             >
               <div className={cn(
                 "w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110",
@@ -155,17 +166,37 @@ export const FeaturesSection = () => {
               )}>
                 <feature.icon className="w-6 h-6" />
               </div>
-              <h3 className="font-display text-lg font-semibold mb-2 group-hover:text-primary transition-colors">
+              <h3 className="font-sans text-lg font-semibold mb-2 text-white group-hover:text-teal-300 transition-colors">
                 {feature.title}
               </h3>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-slate-300 mb-4 leading-relaxed">
                 {feature.description}
               </p>
-              <div className="flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                Learn more <ArrowRight className="w-4 h-4 ml-1" />
+              <div className="flex items-center text-sm font-medium text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                Access Medical Module <ArrowRight className="w-4 h-4 ml-1" />
               </div>
             </Link>
           ))}
+        </div>
+
+        {/* Healthcare Trust Indicators Section */}
+        <div className="mt-20 text-center animate-fade-in" style={{ animationDelay: '0.8s' }}>
+          <div className="inline-flex flex-wrap justify-center items-center gap-4 md:gap-8 px-8 py-6 rounded-2xl bg-slate-800/30 backdrop-blur-sm border border-slate-700/50">
+            <div className="flex items-center gap-3">
+              <Heart className="w-6 h-6 text-red-400" />
+              <span className="text-white font-medium">HIPAA Compliant</span>
+            </div>
+            <div className="hidden md:block w-px h-8 bg-slate-600"></div>
+            <div className="flex items-center gap-3">
+              <Shield className="w-6 h-6 text-teal-400" />
+              <span className="text-white font-medium">Secure Medical Data</span>
+            </div>
+            <div className="hidden md:block w-px h-8 bg-slate-600"></div>
+            <div className="flex items-center gap-3">
+              <Monitor className="w-6 h-6 text-cyan-400" />
+              <span className="text-white font-medium">24/7 Medical Support</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>

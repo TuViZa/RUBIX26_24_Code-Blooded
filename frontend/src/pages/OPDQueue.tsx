@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { mediSyncServices } from "@/lib/firebase-services";
+import { toast } from "sonner";
+import { PatientRegistrationForm } from "@/components/smart-opd/PatientRegistrationForm";
 import { 
   Users, 
   Clock, 
@@ -11,6 +14,11 @@ import {
   Search,
   Filter,
   Plus,
+  User,
+  Phone,
+  Calendar,
+  MapPin,
+  AlertTriangle,
   TrendingDown,
   UserCheck,
   Stethoscope
@@ -18,7 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 
 // --- Types & Initial Data ---
-type Priority = "urgent" | "high" | "normal";
+type Priority = "low" | "medium" | "high" | "urgent" | "emergency";
 type Status = "waiting" | "in-consultation" | "checked-in" | "completed";
 
 interface Patient {
@@ -30,52 +38,209 @@ interface Patient {
   waitTime: number;
   priority: Priority;
   status: Status;
+  positionInQueue?: number;
+  estimatedConsultationTime?: string;
+  registrationTime?: string;
 }
 
 const initialQueue: Patient[] = [
-  { token: "A-001", name: "Rajesh Kumar", age: 45, department: "Cardiology", checkInTime: "08:30 AM", waitTime: 45, priority: "high", status: "waiting" },
-  { token: "A-002", name: "Sunita Devi", age: 62, department: "General Medicine", checkInTime: "08:35 AM", waitTime: 40, priority: "high", status: "waiting" },
-  { token: "A-004", name: "Meera Patel", age: 28, department: "General Medicine", checkInTime: "08:48 AM", waitTime: 27, priority: "normal", status: "in-consultation" },
-  { token: "A-005", name: "Arjun Reddy", age: 55, department: "Cardiology", checkInTime: "08:55 AM", waitTime: 20, priority: "urgent", status: "waiting" },
-  { token: "A-008", name: "Anjali Gupta", age: 8, department: "Pediatrics", checkInTime: "09:15 AM", waitTime: 0, priority: "normal", status: "checked-in" },
+  {
+    token: "OPD-A-042",
+    name: "Rajesh Kumar",
+    age: 45,
+    department: "Cardiology",
+    checkInTime: "08:30 AM",
+    waitTime: 35,
+    priority: "medium",
+    status: "waiting"
+  },
+  {
+    token: "OPD-A-043",
+    name: "Sunita Devi",
+    age: 62,
+    department: "Cardiology",
+    checkInTime: "08:35 AM",
+    waitTime: 0,
+    priority: "high",
+    status: "in-consultation"
+  },
+  {
+    token: "OPD-B-089",
+    name: "Arjun Reddy",
+    age: 55,
+    department: "General Medicine",
+    checkInTime: "08:45 AM",
+    waitTime: 5,
+    priority: "urgent",
+    status: "waiting"
+  },
+  {
+    token: "OPD-C-012",
+    name: "Priya Sharma",
+    age: 28,
+    department: "Pediatrics",
+    checkInTime: "09:00 AM",
+    waitTime: 15,
+    priority: "low",
+    status: "waiting"
+  },
+  {
+    token: "OPD-D-023",
+    name: "Michael Chen",
+    age: 38,
+    department: "Neurology",
+    checkInTime: "09:15 AM",
+    waitTime: 25,
+    priority: "medium",
+    status: "waiting"
+  }
 ];
 
 const priorityConfig = {
+  emergency: { label: "Emergency", color: "bg-critical/10 text-critical border-critical/20" },
   urgent: { label: "Urgent", color: "bg-critical/10 text-critical border-critical/20" },
   high: { label: "High", color: "bg-warning/10 text-warning border-warning/20" },
-  normal: { label: "Normal", color: "bg-muted text-muted-foreground border-border" },
+  medium: { label: "Medium", color: "bg-muted text-muted-foreground border-border" },
+  low: { label: "Low", color: "bg-muted text-muted-foreground border-border" },
 };
 
 const OPDQueue = () => {
-  const [queue, setQueue] = useState<Patient[]>(initialQueue);
+  const [queue, setQueue] = useState<Patient[]>([]);
   const [selectedDept, setSelectedDept] = useState("All Departments");
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+
+  // Load data from Firebase on mount
+  useEffect(() => {
+    const loadQueueData = async () => {
+      try {
+        setLoading(true);
+        const queueData = await mediSyncServices.opdQueue.getQueue();
+        
+        if (queueData && Object.keys(queueData).length > 0) {
+          // Convert Firebase object to array with proper type casting
+          const queueArray = Object.entries(queueData).map(([id, patient]: [string, any]) => ({
+            ...patient,
+            firebaseId: id,
+            priority: patient.priority as Priority,
+            status: patient.status as Status
+          }));
+          setQueue(queueArray);
+        } else {
+          // Initialize with default data if no data exists
+          const defaultQueue: Patient[] = [
+            { token: "A-001", name: "Rajesh Kumar", age: 45, department: "Cardiology", checkInTime: "08:30 AM", waitTime: 45, priority: "high" as Priority, status: "waiting" as Status },
+            { token: "A-002", name: "Sunita Devi", age: 62, department: "General Medicine", checkInTime: "08:35 AM", waitTime: 40, priority: "high" as Priority, status: "waiting" as Status },
+            { token: "A-004", name: "Meera Patel", age: 28, department: "General Medicine", checkInTime: "08:48 AM", waitTime: 27, priority: "normal" as Priority, status: "in-consultation" as Status },
+            { token: "A-005", name: "Arjun Reddy", age: 55, department: "Cardiology", checkInTime: "08:55 AM", waitTime: 20, priority: "urgent" as Priority, status: "waiting" as Status },
+            { token: "A-008", name: "Anjali Gupta", age: 8, department: "Pediatrics", checkInTime: "09:15 AM", waitTime: 0, priority: "normal" as Priority, status: "checked-in" as Status },
+          ];
+          
+          // Add to Firebase
+          for (const patient of defaultQueue) {
+            await mediSyncServices.opdQueue.addToQueue(patient);
+          }
+          
+          setQueue(defaultQueue);
+        }
+      } catch (error) {
+        console.error('Error loading queue data:', error);
+        toast.error('Failed to load queue data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadQueueData();
+    
+    // Listen for real-time updates
+    const unsubscribe = mediSyncServices.opdQueue.listenToQueue((queueData) => {
+      if (queueData && Object.keys(queueData).length > 0) {
+        const queueArray = Object.entries(queueData).map(([id, patient]: [string, any]) => ({
+          ...patient,
+          firebaseId: id,
+          priority: patient.priority as Priority,
+          status: patient.status as Status
+        }));
+        setQueue(queueArray);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   // --- Handlers ---
 
-  const handleStatusChange = (token: string, newStatus: Status) => {
-    setQueue(prev => prev.map(p => 
-      p.token === token ? { ...p, status: newStatus } : p
-    ));
+  const handleStatusChange = async (token: string, newStatus: Status) => {
+  try {
+    const patient = queue.find(p => p.token === token);
+    if (patient && (patient as any).firebaseId) {
+      await mediSyncServices.opdQueue.updateStatus((patient as any).firebaseId, newStatus);
+      toast.success(`Patient ${token} status updated to ${newStatus}`);
+    }
+  } catch (error) {
+    console.error('Error updating status:', error);
+    toast.error('Failed to update patient status');
+  }
+};
+
+  const handleAddPatient = async (patientData: any) => {
+    try {
+      // Generate unique token number
+      const departments = ["Cardiology", "General Medicine", "Pediatrics", "Neurology", "Orthopedics"];
+      const deptCode = patientData.department.charAt(0).toUpperCase();
+      const tokenNumber = `OPD-${deptCode}-${String(Math.floor(Math.random() * 999) + 1).padStart(3, '0')}`;
+      
+      // Calculate initial estimated time
+      const waitingTokens = queue.filter(t => 
+        t.department === patientData.department && 
+        t.status === "waiting" &&
+        t.priority !== "emergency"
+      );
+      
+      const avgTime = 10;
+      const delayBuffer = 0;
+      const estimatedWait = (waitingTokens.length * avgTime) + delayBuffer;
+      
+      const now = new Date();
+      const consultationTime = new Date(now.getTime() + estimatedWait * 60000);
+      
+      // Create new patient with token
+      const newToken: Patient = {
+        token: tokenNumber,
+        name: patientData.name,
+        age: patientData.age,
+        department: patientData.department,
+        checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        waitTime: estimatedWait,
+        priority: patientData.priority as Priority,
+        status: "checked-in",
+        positionInQueue: waitingTokens.length + 1,
+        estimatedConsultationTime: consultationTime.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        registrationTime: patientData.registrationTime,
+      };
+      
+      // Add to Firebase
+      await mediSyncServices.opdQueue.addToQueue(newToken);
+      
+      toast.success(`Patient ${patientData.name} registered with token ${tokenNumber}. Position: ${newToken.positionInQueue}, Estimated time: ${newToken.estimatedConsultationTime}`);
+      console.log('Patient registered successfully:', newToken);
+      
+    } catch (error) {
+      console.error('Error registering patient:', error);
+      toast.error('Failed to register patient');
+    }
   };
 
-  const handleAddPatient = () => {
-    const names = ["Suresh Rai", "Vikas Khanna", "Aditi Rao", "Pooja Shinde"];
-    const depts = ["Cardiology", "General Medicine", "Pediatrics", "Neurology"];
-    const priorities: Priority[] = ["normal", "high", "urgent"];
-    
-    const newPatient: Patient = {
-      token: `A-0${queue.length + 10}`,
-      name: names[Math.floor(Math.random() * names.length)],
-      age: Math.floor(Math.random() * 50) + 10,
-      department: depts[Math.floor(Math.random() * depts.length)],
-      checkInTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      waitTime: 0,
-      priority: priorities[Math.floor(Math.random() * priorities.length)],
-      status: "checked-in"
-    };
-    
-    setQueue([newPatient, ...queue]);
+  const openPatientModal = () => {
+    console.log('Add Patient button clicked');
+    setShowAddPatientModal(true);
   };
 
   // --- Calculations ---
@@ -95,8 +260,8 @@ const OPDQueue = () => {
       .filter(p => p.status !== "completed")
       .filter(p => {
         const matchesDept = selectedDept === "All Departments" || p.department === selectedDept;
-        const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                              p.token.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = (p.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) || 
+                              (p.token?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
         return matchesDept && matchesSearch;
       })
       .sort((a, b) => {
@@ -119,7 +284,7 @@ const OPDQueue = () => {
             <Button variant="outline" size="sm" onClick={() => setQueue(initialQueue)}>
               <RotateCcw className="w-4 h-4 mr-2" /> Reset View
             </Button>
-            <Button variant="hero" size="sm" onClick={handleAddPatient}>
+            <Button variant="hero" size="sm" onClick={openPatientModal}>
               <Plus className="w-4 h-4 mr-2" /> Add Patient
             </Button>
           </div>
@@ -189,8 +354,8 @@ const OPDQueue = () => {
             </div>
 
             <div className="space-y-3">
-              {filteredQueue.map((patient) => (
-                <div key={patient.token} className={cn(
+              {filteredQueue.map((patient, index) => (
+                <div key={`${patient.token}-${index}`} className={cn(
                   "bg-card rounded-2xl border p-4 transition-all hover:shadow-md",
                   patient.status === "in-consultation" ? "border-primary/40 bg-primary/5 ring-1 ring-primary/10" : "border-border"
                 )}>
@@ -210,18 +375,24 @@ const OPDQueue = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-8">
-                      <div className="text-right hidden md:block">
-                        <div className="text-[10px] font-bold text-muted-foreground uppercase">Wait Time</div>
-                        <div className={cn("font-bold", patient.waitTime > 30 ? "text-critical" : "text-success")}>
-                          {patient.waitTime} min
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                      <div className="flex gap-4 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Position:</span>
+                          <span className="font-bold text-primary ml-1">#{patient.positionInQueue || '-'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Est. Time:</span>
+                          <span className="font-bold text-blue-600 ml-1">{patient.estimatedConsultationTime || 'Calculating...'}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Wait:</span>
+                          <span className={cn("font-bold ml-1", patient.waitTime > 30 ? "text-critical" : "text-success")}>
+                            {patient.waitTime}m
+                          </span>
                         </div>
                       </div>
                       
-                      <div className={cn("px-3 py-1.5 rounded-full text-xs font-bold border", priorityConfig[patient.priority].color)}>
-                        {priorityConfig[patient.priority].label}
-                      </div>
-
                       <div className="flex items-center gap-2">
                         {patient.status === "in-consultation" ? (
                           <Button size="sm" className="bg-success hover:bg-success/90 text-white" onClick={() => handleStatusChange(patient.token, "completed")}>
@@ -245,6 +416,16 @@ const OPDQueue = () => {
             </div>
           </div>
         </div>
+        
+        {/* Patient Registration Form */}
+        <PatientRegistrationForm
+          isOpen={showAddPatientModal}
+          onClose={() => {
+            console.log('Patient Registration Form closing');
+            setShowAddPatientModal(false);
+          }}
+          onSubmit={handleAddPatient}
+        />
       </div>
     
   );

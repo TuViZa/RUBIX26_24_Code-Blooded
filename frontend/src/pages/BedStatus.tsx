@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { mediSyncServices } from "@/lib/firebase-services";
+import { toast } from "sonner";
 import { 
   Bed, 
   Grid3X3, 
@@ -102,37 +104,188 @@ const OccupancyCircle = ({ percent, colorClass }: { percent: number; colorClass:
 };
 
 const BedStatusDashboard = () => {
-  const [departments, setDepartments] = useState<DeptData[]>(hydratedDepts);
+  const [departments, setDepartments] = useState<DeptData[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "viz">("grid");
+  const [loading, setLoading] = useState(true);
+
+  // Load data from Firebase on mount
+  useEffect(() => {
+    const loadBedData = async () => {
+      try {
+        setLoading(true);
+        const bedData = await mediSyncServices.beds.getAll();
+        
+        if (bedData && Object.keys(bedData).length > 0) {
+          // Convert Firebase data to department structure
+          const bedsArray = Object.entries(bedData).map(([id, bed]: [string, any]) => ({
+            id,
+            ...bed
+          }));
+          
+          // Organize beds by departments
+          const emergencyBeds = bedsArray.filter(b => b.id.startsWith('E-'));
+          const icuBeds = bedsArray.filter(b => b.id.startsWith('I-'));
+          const generalBeds = bedsArray.filter(b => b.id.startsWith('G-'));
+          
+          const deptData: DeptData[] = [
+            { 
+              id: "emergency", 
+              name: "Emergency", 
+              floor: "Ground Floor", 
+              totalBeds: 10, 
+              beds: emergencyBeds.length > 0 ? emergencyBeds : Array.from({ length: 10 }, (_, i) => ({
+                id: `E-${String(i + 1).padStart(2, '0')}`,
+                status: (Math.random() > 0.5 ? "occupied" : "available") as BedStatus,
+                lastUpdated: "Today, 10:00 AM"
+              }))
+            },
+            { 
+              id: "icu", 
+              name: "ICU", 
+              floor: "1st Floor", 
+              totalBeds: 8, 
+              beds: icuBeds.length > 0 ? icuBeds : Array.from({ length: 8 }, (_, i) => ({
+                id: `I-${String(i + 1).padStart(2, '0')}`,
+                status: (Math.random() > 0.3 ? "occupied" : "available") as BedStatus,
+                lastUpdated: "Today, 10:00 AM"
+              }))
+            },
+            { 
+              id: "general", 
+              name: "General Ward", 
+              floor: "2nd Floor", 
+              totalBeds: 20, 
+              beds: generalBeds.length > 0 ? generalBeds : Array.from({ length: 20 }, (_, i) => ({
+                id: `G-${String(i + 1).padStart(2, '0')}`,
+                status: (Math.random() > 0.6 ? "occupied" : "available") as BedStatus,
+                lastUpdated: "Today, 10:00 AM"
+              }))
+            }
+          ];
+          
+          setDepartments(deptData);
+        } else {
+          // Initialize with default data
+          const defaultDepts = [
+            { id: "emergency", name: "Emergency", floor: "Ground Floor", totalBeds: 10, beds: [] },
+            { id: "icu", name: "ICU", floor: "1st Floor", totalBeds: 8, beds: [] },
+            { id: "general", name: "General Ward", floor: "2nd Floor", totalBeds: 20, beds: [] },
+          ];
+          
+          const hydratedDepts = defaultDepts.map(dept => ({
+            ...dept,
+            beds: Array.from({ length: dept.totalBeds }, (_, i) => ({
+              id: `${dept.id.toUpperCase().substring(0, 1)}-${String(i + 1).padStart(2, '0')}`,
+              status: (Math.random() > 0.5 ? "occupied" : "available") as BedStatus,
+              lastUpdated: "Today, 10:00 AM"
+            }))
+          }));
+          
+          // Add to Firebase
+          for (const dept of hydratedDepts) {
+            for (const bed of dept.beds) {
+              await mediSyncServices.beds.updateStatus(bed.id, bed.status);
+            }
+          }
+          
+          setDepartments(hydratedDepts);
+        }
+      } catch (error) {
+        console.error('Error loading bed data:', error);
+        toast.error('Failed to load bed data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBedData();
+    
+    // Listen for real-time updates
+    const unsubscribe = mediSyncServices.beds.listen((bedData) => {
+      if (bedData && Object.keys(bedData).length > 0) {
+        const bedsArray = Object.entries(bedData).map(([id, bed]: [string, any]) => ({
+          id,
+          ...bed
+        }));
+        
+        // Reorganize into departments
+        const emergencyBeds = bedsArray.filter(b => b.id.startsWith('E-'));
+        const icuBeds = bedsArray.filter(b => b.id.startsWith('I-'));
+        const generalBeds = bedsArray.filter(b => b.id.startsWith('G-'));
+        
+        const deptData: DeptData[] = [
+          { 
+            id: "emergency", 
+            name: "Emergency", 
+            floor: "Ground Floor", 
+            totalBeds: 10, 
+            beds: emergencyBeds.length > 0 ? emergencyBeds : Array.from({ length: 10 }, (_, i) => ({
+              id: `E-${String(i + 1).padStart(2, '0')}`,
+              status: "available" as BedStatus,
+              lastUpdated: "Today, 10:00 AM"
+            }))
+          },
+          { 
+            id: "icu", 
+            name: "ICU", 
+            floor: "1st Floor", 
+            totalBeds: 8, 
+            beds: icuBeds.length > 0 ? icuBeds : Array.from({ length: 8 }, (_, i) => ({
+              id: `I-${String(i + 1).padStart(2, '0')}`,
+              status: "available" as BedStatus,
+              lastUpdated: "Today, 10:00 AM"
+            }))
+          },
+          { 
+            id: "general", 
+            name: "General Ward", 
+            floor: "2nd Floor", 
+            totalBeds: 20, 
+            beds: generalBeds.length > 0 ? generalBeds : Array.from({ length: 20 }, (_, i) => ({
+              id: `G-${String(i + 1).padStart(2, '0')}`,
+              status: "available" as BedStatus,
+              lastUpdated: "Today, 10:00 AM"
+            }))
+          }
+        ];
+        
+        setDepartments(deptData);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   // --- Handlers ---
-  const updateBedStatus = (deptId: string, bedId: string, newStatus: BedStatus) => {
-    setDepartments(prev => prev.map(dept => {
-      if (dept.id !== deptId) return dept;
-      return {
-        ...dept,
-        beds: dept.beds.map(bed => 
-          bed.id === bedId 
-            ? { ...bed, status: newStatus, lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-            : bed
-        )
-      };
-    }));
+  const updateBedStatus = async (deptId: string, bedId: string, newStatus: BedStatus) => {
+    try {
+      await mediSyncServices.beds.updateStatus(bedId, newStatus);
+      toast.success(`Bed ${bedId} status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating bed status:', error);
+      toast.error('Failed to update bed status');
+    }
   };
 
-  const handleNewAdmission = (deptId: string) => {
-    setDepartments(prev => prev.map(dept => {
-      if (dept.id !== deptId) return dept;
-      const availableBed = dept.beds.find(b => b.status === "available");
-      if (!availableBed) return dept;
+  const handleNewAdmission = async (deptId: string) => {
+    try {
+      const dept = departments.find(d => d.id === deptId);
+      if (!dept) return;
       
-      return {
-        ...dept,
-        beds: dept.beds.map(bed => 
-          bed.id === availableBed.id ? { ...bed, status: "occupied" } : bed
-        )
-      };
-    }));
+      const availableBed = dept.beds.find(b => b.status === "available");
+      if (!availableBed) {
+        toast.error('No available beds in this department');
+        return;
+      }
+      
+      await mediSyncServices.beds.updateStatus(availableBed.id, "occupied");
+      toast.success(`Patient admitted to bed ${availableBed.id}`);
+    } catch (error) {
+      console.error('Error admitting patient:', error);
+      toast.error('Failed to admit patient');
+    }
   };
 
   // --- Calculations ---

@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
+<<<<<<< Updated upstream
 import { supabase } from "@/lib/supabaseClient";
+=======
+import { mediSyncServices } from "@/lib/firebase-services";
+>>>>>>> Stashed changes
 import { 
   Activity, 
   Building2, 
   Bed, 
   Ambulance, 
   Droplets, 
-  User, 
   Clock,
   AlertTriangle,
   TrendingUp,
@@ -16,14 +19,14 @@ import {
   Heart,
   Shield,
   Zap,
-  Settings,
   RefreshCw,
-  Download,
-  Bell,
   Eye
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { CityOperationsMap } from "@/components/city/CityOperationsMap";
+import { typographyClasses, colorClasses } from "@/lib/typography";
 
 interface Hospital {
   id: string;
@@ -50,14 +53,18 @@ interface Ambulance {
 const Dashboard = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedHospital, setSelectedHospital] = useState<Hospital | null>(null);
-  const [activeTab, setActiveTab] = useState("dashboard");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hospitals, setHospitals] = useState<any[]>([]);
 
+<<<<<<< Updated upstream
   // Fetch hospital data from Supabase
+=======
+  // Fetch hospital data from Firebase with Real-time listener
+>>>>>>> Stashed changes
   useEffect(() => {
-    const fetchHospitalData = async () => {
+    const initializeDashboard = async () => {
       try {
+<<<<<<< Updated upstream
         const { data, error } = await supabase
           .from('hospitals')
           .select('*');
@@ -70,145 +77,68 @@ const Dashboard = () => {
         }
       } catch (error) {
         console.error('Error fetching hospital data:', error);
+=======
+        const data = await mediSyncServices.dashboard.getStats();
+        if (data && data.hospitals) {
+          setHospitals(Array.isArray(data.hospitals) ? data.hospitals : []);
+        } else {
+          const defaultHospitals = [
+            { id: '1', name: 'City General Hospital', lat: 19.0760, lng: 72.8777, intensity: 0.3 },
+            { id: '2', name: 'St. Mary Medical Center', lat: 19.0870, lng: 72.8887, intensity: 0.7 },
+            { id: '3', name: 'Memorial Regional Hospital', lat: 19.0660, lng: 72.8667, intensity: 0.9 },
+            { id: '4', name: 'Riverside Medical Center', lat: 19.0970, lng: 72.8997, intensity: 0.4 },
+            { id: '5', name: 'Emergency Care Hospital', lat: 19.0560, lng: 72.8557, intensity: 0.6 },
+            { id: '6', name: 'Community Health Center', lat: 19.1170, lng: 72.9107, intensity: 0.2 }
+          ];
+          setHospitals(defaultHospitals);
+          await mediSyncServices.dashboard.updateStats({
+            hospitals: defaultHospitals,
+            lastUpdated: Date.now()
+          });
+        }
+      } catch (error) {
+        console.error('Error initializing dashboard:', error);
+>>>>>>> Stashed changes
       }
     };
 
-    fetchHospitalData();
+    initializeDashboard();
     
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchHospitalData, 30000);
-    return () => clearInterval(interval);
+    const unsubscribe = mediSyncServices.dashboard.listenToStats((data) => {
+      if (data && data.hospitals) {
+        setHospitals(Array.isArray(data.hospitals) ? data.hospitals : []);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
-  // Mock ambulances data
-  const ambulances: Ambulance[] = [
-    { id: "A1", status: "active", location: { x: 25, y: 35 }, destination: { x: 60, y: 30 }, eta: 8 },
-    { id: "A2", status: "dispatched", location: { x: 50, y: 50 }, destination: { x: 45, y: 70 }, eta: 5 },
-    { id: "A3", status: "available", location: { x: 70, y: 45 } },
-    { id: "A4", status: "active", location: { x: 35, y: 55 }, destination: { x: 20, y: 60 }, eta: 12 }
-  ];
-
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     toast.loading('Refreshing dashboard data...');
-    
     setTimeout(() => {
       setIsRefreshing(false);
-      toast.success('Dashboard updated', {
-        description: 'All data has been refreshed with latest information'
-      });
+      toast.success('Dashboard updated');
     }, 1500);
   };
 
-  const handleContactHospital = (hospital: Hospital) => {
-    toast.success(`Connecting to ${hospital.name}...`, {
-      description: 'Your call is being connected to the hospital operator',
-      action: {
-        label: 'Video Call',
-        onClick: () => {
-          toast.info('Starting video call...', {
-            description: 'Connecting to hospital video conference system'
-          });
-        }
-      }
-    });
+  const getStatusColor = (intensity: number) => {
+    if (intensity > 0.8) return "text-red-500";
+    if (intensity > 0.6) return "text-yellow-500";
+    return "text-green-500";
   };
 
-  const handleViewDetails = (hospital: Hospital) => {
-    toast.info(`Loading details for ${hospital.name}...`, {
-      description: 'Fetching comprehensive hospital information',
-      action: {
-        label: 'Full Report',
-        onClick: () => {
-          toast.success('Report generated', {
-            description: 'Complete hospital report is ready for download'
-          });
-        }
-      }
-    });
-  };
-
-  const handleTakeAction = (alert: string, hospital: string) => {
-    toast.warning(`Action required for ${hospital}`, {
-      description: alert,
-      duration: 10000,
-      action: {
-        label: 'Respond Now',
-        onClick: () => {
-          toast.success('Response initiated', {
-            description: 'Emergency protocols have been activated'
-          });
-        }
-      }
-    });
-  };
-
-  const handleExportData = () => {
-    toast.loading('Preparing data export...');
-    
-    setTimeout(() => {
-      toast.success('Data exported successfully', {
-        description: 'Dashboard data has been exported to CSV format',
-        action: {
-          label: 'Download File',
-          onClick: () => {
-            // Simulate file download
-            const data = {
-              timestamp: new Date().toISOString(),
-              hospitals: hospitals.length,
-              ambulances: ambulances.length,
-              totalBeds: hospitals.reduce((sum, h) => sum + h.beds.total, 0),
-              availableBeds: hospitals.reduce((sum, h) => sum + h.beds.available, 0)
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `dashboard-data-${Date.now()}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }
-        }
-      });
-    }, 2000);
-  };
-
-  const handleNotificationSettings = () => {
-    toast.info('Notification settings', {
-      description: 'Configure your alert preferences and notification channels',
-      action: {
-        label: 'Open Settings',
-        onClick: () => console.log('Open notification settings')
-      }
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "normal": return "text-green-400";
-      case "high": return "text-yellow-400";
-      case "critical": return "text-red-400";
-      default: return "text-gray-400";
-    }
-  };
-
-  const getStatusBg = (status: string) => {
-    switch (status) {
-      case "normal": return "bg-green-500/20 border-green-500/30";
-      case "high": return "bg-yellow-500/20 border-yellow-500/30";
-      case "critical": return "bg-red-500/20 border-red-500/30";
-      default: return "bg-gray-500/20 border-gray-500/30";
-    }
+  const getStatusBg = (intensity: number) => {
+    if (intensity > 0.8) return "bg-red-50 border-red-100";
+    if (intensity > 0.6) return "bg-yellow-50 border-yellow-100";
+    return "bg-green-50 border-green-100";
   };
 
   const metrics = [
@@ -217,434 +147,188 @@ const Dashboard = () => {
       value: hospitals.length,
       icon: Building2,
       color: "from-blue-500 to-blue-600",
-      glow: "shadow-blue-500/25"
+      glow: "shadow-blue-500/10"
     },
     {
       title: "Available Beds",
       value: hospitals.reduce((sum, h) => sum + Math.floor((1 - (h.intensity || 0.5)) * 200 + 50), 0),
       icon: Bed,
       color: "from-green-500 to-green-600",
-      glow: "shadow-green-500/25"
+      glow: "shadow-green-500/10"
     },
     {
-      title: "Critical Hospitals",
+      title: "Critical Load",
       value: hospitals.filter(h => (h.intensity || 0.5) > 0.8).length,
       icon: AlertTriangle,
       color: "from-red-500 to-red-600",
-      glow: "shadow-red-500/25"
+      glow: "shadow-red-500/10"
     },
     {
       title: "Average Load",
-      value: `${Math.round(hospitals.reduce((sum, h) => sum + (h.intensity || 0.5), 0) / hospitals.length * 100)}%`,
+      value: `${Math.round(hospitals.reduce((sum, h) => sum + (h.intensity || 0.5), 0) / (hospitals.length || 1) * 100)}%`,
       icon: Activity,
       color: "from-orange-500 to-orange-600",
-      glow: "shadow-orange-500/25"
+      glow: "shadow-orange-500/10"
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-      {/* Header */}
-      <header className="border-b border-white/10 backdrop-blur-lg bg-slate-900/50">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-white" />
-                </div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  City Health Sync
-                </h1>
-              </div>
-              
-              <nav className="hidden md:flex items-center gap-1">
-                {["Dashboard", "Hospitals", "Ambulances", "Analytics"].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab.toLowerCase())}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      activeTab === tab.toLowerCase()
-                        ? "bg-white/10 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </nav>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <button 
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </button>
-              <button 
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-                onClick={handleExportData}
-              >
-                <Download className="w-5 h-5" />
-              </button>
-              <button 
-                className="p-2 rounded-lg hover:bg-white/10 transition-colors relative"
-                onClick={handleNotificationSettings}
-              >
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-              </button>
-              <Link to="/">
-                <button className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700/50 border border-slate-600 text-white hover:bg-slate-700 transition-all">
-                  🏠 Home
-                </button>
-              </Link>
-              <Link to="/">
-                <button className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700/50 border border-slate-600 text-white hover:bg-slate-700 transition-all">
-                  ⭐ Features
-                </button>
-              </Link>
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Clock className="w-4 h-4" />
-                {currentTime.toLocaleTimeString()}
-              </div>
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform"
-                   onClick={() => toast.info('User profile', {
-                     description: 'Open user profile and settings',
-                     action: {
-                       label: 'View Profile',
-                       onClick: () => console.log('Open user profile')
-                     }
-                   })}>
-                <User className="w-5 h-5 text-white" />
-              </div>
-            </div>
+    <AppLayout>
+      <div className={typographyClasses.compact.page}>
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className={typographyClasses.pageHeader}>CuraNet Healthcare Dashboard</h1>
+            <p className={typographyClasses.description}>Real-time hospital operations and city-wide healthcare coordination</p>
+          </div>
+          <div className="flex items-center gap-3">
+             <div className="flex items-center gap-2 text-sm text-slate-500 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                <Clock className="w-4 h-4 text-teal-500" />
+                <span className="font-mono font-bold">{currentTime.toLocaleTimeString()}</span>
+             </div>
+             <Button variant="outline" size="icon" onClick={handleRefresh} className="rounded-xl shadow-sm">
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+             </Button>
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <div className="p-6">
-        {/* Key Metrics */}
+        {/* Key Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {metrics.map((metric, index) => (
-            <div
-              key={index}
-              className={`relative bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6 hover:border-white/20 transition-all shadow-lg ${metric.glow}`}
-            >
+            <div key={index} className={`bg-white rounded-2xl border border-slate-200 p-6 shadow-sm transition-all hover:border-teal-300 ${metric.glow}`}>
               <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${metric.color} flex items-center justify-center`}>
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${metric.color} flex items-center justify-center shadow-md`}>
                   <metric.icon className="w-6 h-6 text-white" />
                 </div>
                 <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               </div>
-              <div className="text-3xl font-bold mb-1">{metric.value.toLocaleString()}</div>
-              <div className="text-sm text-gray-400">{metric.title}</div>
+              <div className={`text-3xl font-bold ${colorClasses.card.text} mb-1`}>{metric.value.toLocaleString()}</div>
+              <div className={typographyClasses.metricLabel}>{metric.title}</div>
             </div>
           ))}
         </div>
 
-        {/* Main Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Hospital List */}
+        {/* Main Operational Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Hospital List Sidebar */}
           <div className="lg:col-span-3">
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                Hospital Status
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm h-full">
+              <h3 className={`${typographyClasses.cardHeader} flex items-center gap-2 mb-4`}>
+                <Building2 className="w-5 h-5 text-teal-500" /> Hospital Status
               </h3>
-              <div className="space-y-3">
-                {hospitals.slice(0, 6).map((hospital, index) => (
+              <div className="space-y-3 overflow-y-auto max-h-[600px] pr-2">
+                {hospitals.map((hospital, index) => (
                   <div
                     key={index}
                     onClick={() => setSelectedHospital({
-                      id: index.toString(),
-                      name: `Hospital ${index + 1}`,
-                      status: hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal",
-                      beds: { 
-                        total: Math.floor((1 - hospital.intensity) * 500 + 300), 
-                        available: Math.floor((1 - hospital.intensity) * 200 + 50), 
-                        icu: Math.floor(hospital.intensity * 50 + 10), 
-                        ventilators: Math.floor(hospital.intensity * 30 + 5) 
-                      },
-                      emergency: hospital.intensity > 0.8,
-                      location: { x: (hospital.lat - 19) * 1000, y: (hospital.lng - 72) * 1000 }
+                        ...hospital,
+                        status: hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal",
+                        beds: { total: 200, available: Math.floor((1-hospital.intensity)*200), icu: 20, ventilators: 10 }
                     })}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all hover:bg-white/5 ${
-                      selectedHospital?.id === index.toString() ? "border-blue-500/50 bg-blue-500/10" : "border-white/10"
+                    className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                      selectedHospital?.id === hospital.id ? "border-teal-500 bg-teal-50" : "border-slate-100 hover:bg-slate-50"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="font-medium text-sm">Hospital {index + 1}</div>
-                      <div className={`w-2 h-2 rounded-full ${getStatusColor(hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal")}`} />
+                      <div className="font-bold text-sm text-slate-800">{hospital.name || `Facility ${index + 1}`}</div>
+                      <div className={`w-2 h-2 rounded-full ${hospital.intensity > 0.8 ? 'bg-red-500' : 'bg-green-500'}`} />
                     </div>
-                    <div className={`text-xs px-2 py-1 rounded-full inline-block ${getStatusBg(hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal")} ${getStatusColor(hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal")}`}>
-                      {(hospital.intensity * 100).toFixed(1)}% Load
+                    <div className={`text-[10px] px-2 py-0.5 rounded-full inline-block font-bold ${getStatusBg(hospital.intensity)} ${getStatusColor(hospital.intensity)}`}>
+                      {Math.round(hospital.intensity * 100)}% Load
                     </div>
-                    {hospital.intensity > 0.8 && (
-                      <div className="flex items-center gap-1 mt-2 text-red-400">
-                        <AlertTriangle className="w-3 h-3" />
-                        <span className="text-xs">High Load</span>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Map View */}
+          {/* Map View Central Section */}
           <div className="lg:col-span-6">
-            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6 h-[600px] relative overflow-hidden">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                City Operations Map
-              </h3>
-              
-              {/* Map Background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-900/50 to-slate-800/50 rounded-xl">
-                {/* Grid lines for map effect */}
-                <div className="absolute inset-0 opacity-10">
-                  {[...Array(10)].map((_, i) => (
-                    <div key={`h-${i}`} className="absolute w-full border-t border-white/20" style={{ top: `${i * 10}%` }} />
-                  ))}
-                  {[...Array(10)].map((_, i) => (
-                    <div key={`v-${i}`} className="absolute h-full border-l border-white/20" style={{ left: `${i * 10}%` }} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Hospital Markers */}
-              {hospitals.slice(0, 6).map((hospital, index) => (
-                <div
-                  key={index}
-                  className="absolute w-4 h-4 rounded-full border-2 border-white cursor-pointer transform -translate-x-1/2 -translate-y-1/2"
-                  style={{ 
-                    left: `${(hospital.lat - 19) * 100 + 50}%`, 
-                    top: `${(hospital.lng - 72) * 100 + 50}%`,
-                    backgroundColor: hospital.intensity > 0.8 ? '#ef4444' : hospital.intensity > 0.6 ? '#f59e0b' : '#10b981'
-                  }}
-                  onClick={() => setSelectedHospital({
-                    id: index.toString(),
-                    name: `Hospital ${index + 1}`,
-                    status: hospital.intensity > 0.8 ? "critical" : hospital.intensity > 0.6 ? "high" : "normal",
-                    beds: { total: Math.floor(Math.random() * 1000) + 200, available: Math.floor(Math.random() * 200) + 50, icu: Math.floor(Math.random() * 50) + 10, ventilators: Math.floor(Math.random() * 30) + 5 },
-                    emergency: hospital.intensity > 0.8,
-                    location: { x: (hospital.lat - 19) * 1000, y: (hospital.lng - 72) * 1000 }
-                  })}
-                >
-                  {hospital.intensity > 0.8 && (
-                    <div className="absolute -inset-2 rounded-full bg-red-500 animate-ping" />
-                  )}
-                </div>
-              ))}
-
-              {/* Ambulance Markers */}
-              {ambulances.map((ambulance) => (
-                <div
-                  key={ambulance.id}
-                  className="absolute w-3 h-3 rounded-full bg-orange-500 border border-white transform -translate-x-1/2 -translate-y-1/2"
-                  style={{ 
-                    left: `${ambulance.location.x}%`, 
-                    top: `${ambulance.location.y}%`
-                  }}
-                >
-                  {ambulance.status === 'active' && (
-                    <div className="absolute -inset-1 rounded-full bg-orange-500 animate-pulse" />
-                  )}
-                </div>
-              ))}
-
-              {/* Emergency Popup */}
-              <div className="absolute top-4 right-4 bg-red-500/20 border border-red-500/50 rounded-xl p-4 max-w-xs backdrop-blur-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <span className="font-semibold text-red-400">Emergency Response</span>
-                </div>
-                <div className="text-sm text-gray-300">
-                  <div>Cardiac Emergency - St. Mary's</div>
-                  <div className="text-xs text-gray-400 mt-1">ETA: 8 minutes</div>
-                </div>
-              </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-sm h-[600px] relative overflow-hidden">
+                <CityOperationsMap 
+                  hospitals={hospitals}
+                  onHospitalSelect={setSelectedHospital}
+                />
             </div>
           </div>
 
-          {/* Selected Hospital Details */}
+          {/* Facility Details Sidebar */}
           <div className="lg:col-span-3">
             {selectedHospital ? (
-              <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-                <h3 className="text-lg font-semibold mb-4">{selectedHospital.name}</h3>
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm sticky top-4">
+                <h3 className="text-xl font-bold text-slate-900 mb-6">{selectedHospital.name}</h3>
                 
-                <div className="space-y-4">
-                  <div className={`p-3 rounded-xl ${getStatusBg(selectedHospital.status)}`}>
+                <div className="space-y-6">
+                  <div className={`p-4 rounded-xl border ${getStatusBg(selectedHospital.intensity || 0.5)}`}>
                     <div className="flex items-center gap-2 mb-1">
-                      <Shield className="w-4 h-4" />
-                      <span className="font-medium">Emergency Status</span>
+                      <Shield className="w-4 h-4 text-slate-700" />
+                      <span className="text-xs font-bold text-slate-700 uppercase">Emergency Status</span>
                     </div>
-                    <div className={`text-sm ${getStatusColor(selectedHospital.status)}`}>
-                      {selectedHospital.status.toUpperCase()}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Bed className="w-4 h-4" />
-                      <span className="font-medium">Bed Availability</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>Available</span>
-                          <span>{(selectedHospital.beds?.available || 0)}/{(selectedHospital.beds?.total || 1)}</span>
-                        </div>
-                        <div className="w-full bg-slate-700 rounded-full h-2">
-                          <div 
-                            className="bg-green-500 h-2 rounded-full transition-all"
-                            style={{ width: `${((selectedHospital.beds?.available || 0) / (selectedHospital.beds?.total || 1)) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>ICU</span>
-                          <span>{selectedHospital.beds?.icu || 0}</span>
-                        </div>
-                        <div className="w-full bg-slate-700 rounded-full h-2">
-                          <div 
-                            className="bg-orange-500 h-2 rounded-full transition-all"
-                            style={{ width: `${((selectedHospital.beds?.icu || 0) / (selectedHospital.beds?.total || 1)) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>Ventilators</span>
-                          <span>{selectedHospital.beds?.ventilators || 0}</span>
-                        </div>
-                        <div className="w-full bg-slate-700 rounded-full h-2">
-                          <div 
-                            className="bg-red-500 h-2 rounded-full transition-all"
-                            style={{ width: `${((selectedHospital.beds?.ventilators || 0) / (selectedHospital.beds?.total || 1)) * 100}%` }}
-                          />
-                        </div>
-                      </div>
+                    <div className={`text-sm font-bold ${getStatusColor(selectedHospital.intensity || 0.5)}`}>
+                      {(selectedHospital.status || "NORMAL").toUpperCase()}
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button 
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-xl text-sm font-medium transition-colors"
-                      onClick={() => handleContactHospital(selectedHospital)}
-                    >
-                      <Phone className="w-4 h-4 mr-2" />
-                      Contact
-                    </button>
-                    <button 
-                      className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 px-4 rounded-xl text-sm font-medium transition-colors"
-                      onClick={() => handleViewDetails(selectedHospital)}
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      Details
-                    </button>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                      <Bed className="w-4 h-4" /> Resource Allocation
+                    </div>
+                    <div className="space-y-3">
+                        {['Total Beds', 'ICU Units', 'Ventilators'].map((label, idx) => (
+                            <div key={label}>
+                                <div className="flex justify-between text-[10px] text-slate-500 mb-1 font-bold uppercase">
+                                    <span>{label}</span>
+                                    <span>{idx === 0 ? '78%' : idx === 1 ? '45%' : '12%'}</span>
+                                </div>
+                                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                                    <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: idx === 0 ? '78%' : idx === 1 ? '45%' : '12%' }} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 pt-4">
+                    <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white shadow-md">
+                      <Phone className="w-4 h-4 mr-2" /> Contact Facility
+                    </Button>
+                    <Button variant="outline" className="w-full border-slate-200 text-slate-600">
+                      <Eye className="w-4 h-4 mr-2" /> View Full Report
+                    </Button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-                <div className="text-center text-gray-400 py-12">
-                  <Building2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Select a hospital to view details</p>
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm flex flex-col items-center justify-center text-center h-full">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <Building2 className="w-8 h-8 text-slate-300" />
                 </div>
+                <p className="text-sm text-slate-400 font-medium">Select a hospital on the map or list to monitor live performance telemetry.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Bottom Analytics Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Resource Usage
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Bed Occupancy</span>
-                <span className="text-sm font-medium">78%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full" style={{ width: '78%' }} />
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">ICU Usage</span>
-                <span className="text-sm font-medium">92%</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div className="bg-gradient-to-r from-orange-500 to-red-500 h-2 rounded-full" style={{ width: '92%' }} />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Zap className="w-5 h-5" />
-              Demand Forecast
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Next 6 Hours</span>
-                <span className="text-sm font-medium text-yellow-400">+15%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Next 24 Hours</span>
-                <span className="text-sm font-medium text-orange-400">+32%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-400">Peak Load</span>
-                <span className="text-sm font-medium text-red-400">3:00 PM</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              Critical Alerts
-            </h3>
-            <div className="space-y-3">
-              <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-xl">
-                <div className="flex items-center gap-2 mb-1">
-                  <Heart className="w-4 h-4 text-red-400" />
-                  <span className="text-sm font-medium">Memorial Regional</span>
+        {/* Analytics Summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
+            {[
+                { title: "System Capacity", icon: TrendingUp, val: "78%", color: "teal" },
+                { title: "Network Demand", icon: Zap, val: "+12%", color: "orange" },
+                { title: "Active Emergencies", icon: Heart, val: "4 Units", color: "red" }
+            ].map((item) => (
+                <div key={item.title} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-lg bg-${item.color}-50 flex items-center justify-center`}>
+                            <item.icon className={`w-5 h-5 text-${item.color}-500`} />
+                        </div>
+                        <span className="text-sm font-bold text-slate-700 uppercase tracking-tight">{item.title}</span>
+                    </div>
+                    <span className="text-xl font-bold text-slate-900">{item.val}</span>
                 </div>
-                <div className="text-xs text-gray-400">ICU capacity at 95%</div>
-                <button 
-                className="mt-2 text-xs text-red-400 hover:text-red-300 cursor-pointer"
-                onClick={() => handleTakeAction('ICU capacity at 95%', 'Memorial Regional')}
-              >
-                Take Action →
-              </button>
-              </div>
-              <div className="p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-xl">
-                <div className="flex items-center gap-2 mb-1">
-                  <Users className="w-4 h-4 text-yellow-400" />
-                  <span className="text-sm font-medium">St. Mary's</span>
-                </div>
-                <div className="text-xs text-gray-400">Blood supply low</div>
-                <button 
-                className="mt-2 text-xs text-yellow-400 hover:text-yellow-300 cursor-pointer"
-                onClick={() => handleTakeAction('Blood supply low', "St. Mary's")}
-              >
-                Take Action →
-              </button>
-              </div>
-            </div>
-          </div>
+            ))}
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

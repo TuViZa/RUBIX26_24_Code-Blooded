@@ -59,7 +59,6 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   }
 };
 
-// Mock user database for demonstration
 const MOCK_USERS: User[] = [
   {
     id: '1',

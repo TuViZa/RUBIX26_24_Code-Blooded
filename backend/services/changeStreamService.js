@@ -16,8 +16,28 @@ async function setupChangeStreams(io, mongoose) {
   try {
     console.log('🔄 Setting up MongoDB Change Streams for BedEvent...');
     
+<<<<<<< Updated upstream
     // Get the BedEvent collection
     const db = mongoose.connection.db;
+=======
+    // Wait for MongoDB connection to be ready
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⏳ Waiting for MongoDB connection to be ready...');
+      await new Promise((resolve) => {
+        if (mongoose.connection.readyState === 1) {
+          resolve();
+        } else {
+          mongoose.connection.once('connected', resolve);
+        }
+      });
+    }
+    
+    // Get the BedEvent collection
+    const db = mongoose.connection.db;
+    if (!db) {
+      throw new Error('Database connection not available');
+    }
+>>>>>>> Stashed changes
     const bedEventCollection = db.collection('bedevents');
     
     // Open change stream for BedEvent

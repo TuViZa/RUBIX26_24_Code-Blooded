@@ -1,45 +1,51 @@
-import { Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export const Footer = () => {
   return (
-    <footer className="py-12 bg-foreground text-background">
+    <footer className="py-12 bg-teal-950 text-teal-100 border-t border-teal-800">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Activity className="w-5 h-5 text-primary-foreground" />
+              <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center border-2 border-teal-400 bg-white">
+                <img src="/logo.png" alt="CuraNet Logo" className="w-full h-full object-cover" />
               </div>
-              <span className="font-display font-bold text-xl">MedSync</span>
+              <span 
+                className="font-bold text-xl italic" 
+                style={{ fontFamily: "'Lobster', cursive" }}
+              >
+                <span style={{ color: '#40E0D0' }}>Cura</span>
+                <span className="text-white">Net</span>
+              </span>
             </Link>
-            <p className="text-background/60 max-w-sm">
-              Intelligent hospital operations platform for data-driven healthcare management at the city level.
+            <p className="text-teal-300/60 max-w-sm">
+              Advanced healthcare network platform for intelligent hospital operations and data-driven management.
             </p>
           </div>
           
           <div>
-            <h4 className="font-semibold mb-4">Platform</h4>
+            <h4 className="font-semibold text-white mb-4">Platform</h4>
             <ul className="space-y-2">
-              <li><Link to="/dashboard" className="text-background/60 hover:text-background transition-colors">Dashboard</Link></li>
-              <li><Link to="/opd-queue" className="text-background/60 hover:text-background transition-colors">OPD Queue</Link></li>
-              <li><Link to="/beds" className="text-background/60 hover:text-background transition-colors">Bed Status</Link></li>
-              <li><Link to="/blood-bank" className="text-background/60 hover:text-background transition-colors">Blood Bank</Link></li>
+              <li><Link to="/dashboard" className="text-teal-300/60 hover:text-teal-100 transition-colors">Dashboard</Link></li>
+              <li><Link to="/opd-queue" className="text-teal-300/60 hover:text-teal-100 transition-colors">OPD Queue</Link></li>
+              <li><Link to="/beds" className="text-teal-300/60 hover:text-teal-100 transition-colors">Bed Status</Link></li>
+              <li><Link to="/blood-bank" className="text-teal-300/60 hover:text-teal-100 transition-colors">Blood Bank</Link></li>
             </ul>
           </div>
           
           <div>
-            <h4 className="font-semibold mb-4">Resources</h4>
+            <h4 className="font-semibold text-white mb-4">Resources</h4>
             <ul className="space-y-2">
-              <li><a href="#" className="text-background/60 hover:text-background transition-colors">Documentation</a></li>
-              <li><a href="#" className="text-background/60 hover:text-background transition-colors">API Reference</a></li>
-              <li><a href="#" className="text-background/60 hover:text-background transition-colors">Support</a></li>
+              <li><Link to="/hospital-registration" className="text-teal-300/60 hover:text-teal-100 transition-colors">Hospital Registration</Link></li>
+              <li><a href="#" className="text-teal-300/60 hover:text-teal-100 transition-colors">Documentation</a></li>
+              <li><a href="#" className="text-teal-300/60 hover:text-teal-100 transition-colors">API Reference</a></li>
+              <li><a href="#" className="text-teal-300/60 hover:text-teal-100 transition-colors">Support</a></li>
             </ul>
           </div>
         </div>
         
-        <div className="pt-8 border-t border-background/10 text-center text-sm text-background/40">
-          <p>© 2024 MedSync. Built for Healthier Cities.</p>
+        <div className="pt-8 border-t border-teal-800 text-center text-sm text-teal-500">
+          <p>© 2026 CuraNet. Built for a Healthier Future.</p>
         </div>
       </div>
     </footer>

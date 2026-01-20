@@ -45,8 +45,8 @@ export const Login = () => {
       const redirectMap: Record<UserRole, string> = {
         admin: '/dashboard',
         hospital_staff: '/dashboard',
-        doctor: '/dashboard',
-        nurse: '/dashboard',
+        doctor: '/doctor-dashboard',
+        nurse: '/nurse-dashboard',
         patient: '/patient-portal',
       };
       
@@ -199,12 +199,15 @@ export const Login = () => {
             </div>
 
             {/* Sign Up Link */}
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center space-y-2">
               <p className="text-sm text-gray-600">
                 Don't have an account?{' '}
                 <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
                   Sign up
                 </Link>
+              </p>
+              <p className="text-xs text-gray-500">
+                Hospital? <Link to="/hospital-registration" className="text-blue-600 hover:text-blue-700 font-medium">Register Your Hospital</Link>
               </p>
             </div>
           </CardContent>

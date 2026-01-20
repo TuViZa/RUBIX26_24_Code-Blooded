@@ -155,6 +155,50 @@ router.get('/hospital-status/:hospitalId', async (req, res) => {
   }
 });
 
+<<<<<<< Updated upstream
+=======
+// GET /api/city/heatmap-data - Return hospital data with occupancy for map display
+router.get('/heatmap-data', async (req, res) => {
+  try {
+    console.log('Hit: City Heatmap Data Endpoint');
+    
+    const hospitals = await Hospital.find({});
+    const hospitalIds = hospitals.map(h => h._id);
+    
+    // Get occupied beds for all hospitals
+    const occupancyData = await getMultipleOccupiedBeds(hospitalIds);
+    
+    // Create lookup map
+    const occupancyMap = {};
+    occupancyData.forEach(item => {
+      occupancyMap[item.hospitalId.toString()] = item.occupiedBeds;
+    });
+    
+    const hospitalsWithOccupancy = hospitals.map(hospital => {
+      const hospitalId = hospital._id.toString();
+      const occupiedBeds = occupancyMap[hospitalId] || 0;
+      const occupancyRate = hospital.totalBeds > 0 ? (occupiedBeds / hospital.totalBeds) : 0;
+      
+      return {
+        _id: hospital._id,
+        name: hospital.name,
+        location: hospital.location,
+        totalBeds: hospital.totalBeds,
+        occupiedBeds: occupiedBeds,
+        availableBeds: Math.max(0, hospital.totalBeds - occupiedBeds),
+        occupancyRate: Math.round(occupancyRate * 100) / 100,
+        status: classifyHospital(occupancyRate * 100)
+      };
+    });
+    
+    res.json({ hospitals: hospitalsWithOccupancy });
+  } catch (error) {
+    console.error('Error fetching heatmap data:', error);
+    res.status(500).json({ error: 'Failed to fetch heatmap data' });
+  }
+});
+
+>>>>>>> Stashed changes
 module.exports = { 
   router, 
   calculateCitySummary, 

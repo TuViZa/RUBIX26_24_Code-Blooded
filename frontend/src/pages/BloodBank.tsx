@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { mediSyncServices } from "@/lib/firebase-services";
+import { toast } from "sonner";
 import { 
   Droplets, Plus, AlertTriangle, Building2, ArrowRightLeft, 
   Activity, ChevronDown, Send, ClipboardCheck, Megaphone, 
@@ -23,19 +25,10 @@ interface BloodBatch {
 
 const BloodBank = () => {
   // 1. Core State: Inventory with Batch Tracking
-  const [inventory, setInventory] = useState<Record<string, { demand: number; batches: BloodBatch[] }>>({
-    "A+": { demand: 38, batches: [{ id: "BAT-001", units: 45, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-    "A-": { demand: 15, batches: [{ id: "BAT-002", units: 12, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-    "B+": { demand: 32, batches: [{ id: "BAT-003", units: 38, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-    "B-": { demand: 12, batches: [{ id: "BAT-004", units: 8, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-    "AB+": { demand: 18, batches: [{ id: "BAT-005", units: 22, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-    "AB-": { demand: 6, batches: [{ id: "BAT-006", units: 5, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-    "O+": { demand: 55, batches: [{ id: "BAT-007", units: 52, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-    "O-": { demand: 25, batches: [{ id: "BAT-008", units: 15, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
-  });
-
+  const [inventory, setInventory] = useState<Record<string, { demand: number; batches: BloodBatch[] }>>({});
   const [systemAlert, setSystemAlert] = useState<{type: string, message: string} | null>(null);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   
   const [incomingRequests, setIncomingRequests] = useState([
     { id: "REQ-9901", hospital: "City General", type: "O-", units: 2, priority: "emergency" },
@@ -45,6 +38,86 @@ const BloodBank = () => {
   const [logs, setLogs] = useState([
     { id: "TX-402", action: "INBOUND", type: "A+", units: 1, time: "10:30 AM" },
   ]);
+
+  // Load data from Firebase on mount
+  useEffect(() => {
+    const loadBloodBankData = async () => {
+      try {
+        setLoading(true);
+        const inventoryData = await mediSyncServices.bloodBank.getInventory();
+        
+        if (inventoryData && Object.keys(inventoryData).length > 0) {
+          // Convert Firebase data to local format
+          const formattedInventory: Record<string, { demand: number; batches: BloodBatch[] }> = {};
+          
+          Object.entries(inventoryData).forEach(([bloodType, data]: [string, any]) => {
+            formattedInventory[bloodType] = {
+              demand: data.demand || Math.floor(Math.random() * 40) + 10,
+              batches: data.units ? [{
+                id: `BAT-${Math.floor(Math.random() * 9000 + 1000)}`,
+                units: data.units,
+                entryDate: new Date(data.lastUpdated || Date.now()),
+                expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000)
+              }] : []
+            };
+          });
+          
+          setInventory(formattedInventory);
+        } else {
+          // Initialize with default data
+          const defaultInventory = {
+            "A+": { demand: 38, batches: [{ id: "BAT-001", units: 45, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+            "A-": { demand: 15, batches: [{ id: "BAT-002", units: 12, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+            "B+": { demand: 32, batches: [{ id: "BAT-003", units: 38, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+            "B-": { demand: 12, batches: [{ id: "BAT-004", units: 8, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+            "AB+": { demand: 18, batches: [{ id: "BAT-005", units: 22, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+            "AB-": { demand: 6, batches: [{ id: "BAT-006", units: 5, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+            "O+": { demand: 55, batches: [{ id: "BAT-007", units: 52, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+            "O-": { demand: 25, batches: [{ id: "BAT-008", units: 15, entryDate: new Date(), expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000) }] },
+          };
+          
+          // Add to Firebase
+          for (const [bloodType, data] of Object.entries(defaultInventory)) {
+            await mediSyncServices.bloodBank.updateInventory(bloodType, data.batches[0].units);
+          }
+          
+          setInventory(defaultInventory);
+        }
+      } catch (error) {
+        console.error('Error loading blood bank data:', error);
+        toast.error('Failed to load blood bank data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBloodBankData();
+    
+    // Listen for real-time updates
+    const unsubscribe = mediSyncServices.bloodBank.listenToInventory((inventoryData) => {
+      if (inventoryData && Object.keys(inventoryData).length > 0) {
+        const formattedInventory: Record<string, { demand: number; batches: BloodBatch[] }> = {};
+        
+        Object.entries(inventoryData).forEach(([bloodType, data]: [string, any]) => {
+          formattedInventory[bloodType] = {
+            demand: data.demand || Math.floor(Math.random() * 40) + 10,
+            batches: data.units ? [{
+              id: `BAT-${Math.floor(Math.random() * 9000 + 1000)}`,
+              units: data.units,
+              entryDate: new Date(data.lastUpdated || Date.now()),
+              expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000)
+            }] : []
+          };
+        });
+        
+        setInventory(formattedInventory);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   // --- Logic Handlers ---
 
@@ -75,34 +148,59 @@ const BloodBank = () => {
     }, ...prev]);
   };
 
-  const handleInbound = (bloodType: string, amount: number) => {
+  const handleInbound = async (bloodType: string, amount: number) => {
+  try {
     const newBatch: BloodBatch = {
       id: `BAT-${Math.floor(Math.random() * 9000 + 1000)}`,
       units: amount,
       entryDate: new Date(),
       expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000)
     };
-    setInventory(prev => ({
-      ...prev,
-      [bloodType]: { ...prev[bloodType], batches: [...prev[bloodType].batches, newBatch] }
-    }));
+    
+    await mediSyncServices.bloodBank.addDonation({
+      ...newBatch,
+      bloodType,
+      donorName: "Anonymous Donor",
+      donationDate: new Date().toISOString()
+    });
+    
+    await mediSyncServices.bloodBank.updateInventory(bloodType, getTotalUnits(bloodType) + amount);
+    
     addLog("INBOUND", bloodType, amount);
-  };
+    toast.success(`${amount} units of ${bloodType} blood added to inventory`);
+  } catch (error) {
+    console.error('Error adding blood donation:', error);
+    toast.error('Failed to add blood donation');
+  }
+};
 
-  const handleOutbound = (reqId: string, status: 'accept' | 'reject') => {
+  const handleOutbound = async (reqId: string, status: 'accept' | 'reject') => {
+  try {
     const request = incomingRequests.find(r => r.id === reqId);
     if (status === 'accept' && request) {
       const type = request.type;
-      setInventory(prev => {
-        const unitsToDeduct = request.units;
-        const updatedBatches = [...prev[type].batches].sort((a,b) => a.expiryDate.getTime() - b.expiryDate.getTime());
-        if (updatedBatches[0]) updatedBatches[0].units = Math.max(0, updatedBatches[0].units - unitsToDeduct);
-        return { ...prev, [type]: { ...prev[type], batches: updatedBatches.filter(b => b.units > 0) } };
-      });
+      const currentUnits = getTotalUnits(type);
+      
+      if (currentUnits < request.units) {
+        toast.error(`Insufficient ${type} blood units. Available: ${currentUnits}, Requested: ${request.units}`);
+        return;
+      }
+      
+      await mediSyncServices.bloodBank.updateInventory(type, currentUnits - request.units);
       addLog("OUTBOUND", type, request.units);
+      toast.success(`${request.units} units of ${type} blood dispatched to ${request.hospital}`);
+      
+      // Remove request from incoming requests
+      setIncomingRequests(prev => prev.filter(r => r.id !== reqId));
+    } else if (status === 'reject') {
+      setIncomingRequests(prev => prev.filter(r => r.id !== reqId));
+      toast.info(`Blood request ${reqId} rejected`);
     }
-    setIncomingRequests(prev => prev.filter(r => r.id !== reqId));
-  };
+  } catch (error) {
+    console.error('Error processing blood request:', error);
+    toast.error('Failed to process blood request');
+  }
+};
 
   const triggerEmergencyBroadcast = (bloodType: string) => {
     setSystemAlert({

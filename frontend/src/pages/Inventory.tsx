@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { mediSyncServices } from "@/lib/firebase-services";
+import { toast } from "sonner";
 import { 
   Package, AlertTriangle, TrendingDown, Plus, Search, 
   Filter, ArrowUpRight, ArrowDownRight, X, RefreshCw 
@@ -13,16 +15,11 @@ const CATEGORIES = ["All", "Medicine", "Consumable", "Equipment"];
 
 const Inventory = () => {
   // 1. State Management
-  const [items, setItems] = useState([
-    { id: 1, name: "Paracetamol 500mg", category: "Medicine", stock: 150, minStock: 500, unit: "tablets", trend: "down", usage: 45 },
-    { id: 2, name: "Surgical Gloves (L)", category: "Consumable", stock: 2500, minStock: 1000, unit: "pairs", trend: "stable", usage: 120 },
-    { id: 3, name: "IV Saline 500ml", category: "Medicine", stock: 80, minStock: 200, unit: "bottles", trend: "down", usage: 25 },
-    { id: 4, name: "Oxygen Cylinders", category: "Equipment", stock: 12, minStock: 20, unit: "cylinders", trend: "down", usage: 3 },
-  ]);
-
+  const [items, setItems] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   // New States for Restocking Feature
   const [restockItem, setRestockItem] = useState<any>(null);
@@ -31,6 +28,62 @@ const Inventory = () => {
   const [newItem, setNewItem] = useState({
     name: "", category: "Medicine", stock: 0, minStock: 0, unit: "units"
   });
+
+  // Load data from Firebase on mount
+  useEffect(() => {
+    const loadInventoryData = async () => {
+      try {
+        setLoading(true);
+        const inventoryData = await mediSyncServices.inventory.getAll();
+        
+        if (inventoryData && Object.keys(inventoryData).length > 0) {
+          // Convert Firebase object to array
+          const itemsArray = Object.entries(inventoryData).map(([id, item]: [string, any]) => ({
+            id,
+            ...item
+          }));
+          setItems(itemsArray);
+        } else {
+          // Initialize with default data
+          const defaultItems = [
+            { id: 1, name: "Paracetamol 500mg", category: "Medicine", stock: 150, minStock: 500, unit: "tablets", trend: "down", usage: 45 },
+            { id: 2, name: "Surgical Gloves (L)", category: "Consumable", stock: 2500, minStock: 1000, unit: "pairs", trend: "stable", usage: 120 },
+            { id: 3, name: "IV Saline 500ml", category: "Medicine", stock: 80, minStock: 200, unit: "bottles", trend: "down", usage: 25 },
+            { id: 4, name: "Oxygen Cylinders", category: "Equipment", stock: 12, minStock: 20, unit: "cylinders", trend: "down", usage: 3 },
+          ];
+          
+          // Add to Firebase
+          for (const item of defaultItems) {
+            await mediSyncServices.inventory.addItem(item);
+          }
+          
+          setItems(defaultItems);
+        }
+      } catch (error) {
+        console.error('Error loading inventory data:', error);
+        toast.error('Failed to load inventory data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInventoryData();
+    
+    // Listen for real-time updates
+    const unsubscribe = mediSyncServices.inventory.listen((inventoryData) => {
+      if (inventoryData && Object.keys(inventoryData).length > 0) {
+        const itemsArray = Object.entries(inventoryData).map(([id, item]: [string, any]) => ({
+          id,
+          ...item
+        }));
+        setItems(itemsArray);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   // 2. Functional Filtering Logic
   const filteredItems = useMemo(() => {
@@ -42,35 +95,43 @@ const Inventory = () => {
   }, [items, searchTerm, selectedCategory]);
 
   // 3. Add Item Functionality
-  const handleAddItem = (e: React.FormEvent) => {
+  const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItem.name) return;
     
-    const itemToAdd = {
-      ...newItem,
-      id: Date.now(),
-      trend: "stable",
-      usage: 0
-    };
+    try {
+      const itemToAdd = {
+        ...newItem,
+        id: Date.now(),
+        trend: "stable",
+        usage: 0
+      };
 
-    setItems(prev => [itemToAdd, ...prev]);
-    setShowAddModal(false);
-    setNewItem({ name: "", category: "Medicine", stock: 0, minStock: 0, unit: "units" });
+      await mediSyncServices.inventory.addItem(itemToAdd);
+      setShowAddModal(false);
+      setNewItem({ name: "", category: "Medicine", stock: 0, minStock: 0, unit: "units" });
+      toast.success(`Item "${newItem.name}" added to inventory`);
+    } catch (error) {
+      console.error('Error adding item:', error);
+      toast.error('Failed to add item to inventory');
+    }
   };
 
   // 4. Restock Functionality
-  const handleRestock = (e: React.FormEvent) => {
+  const handleRestock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restockItem || restockAmount <= 0) return;
 
-    setItems(prev => prev.map(item => 
-      item.id === restockItem.id 
-        ? { ...item, stock: item.stock + restockAmount, trend: "up" }
-        : item
-    ));
-
-    setRestockItem(null);
-    setRestockAmount(0);
+    try {
+      await mediSyncServices.inventory.updateStock(restockItem.id, restockItem.stock + restockAmount);
+      
+      setRestockItem(null);
+      setRestockAmount(0);
+      toast.success(`Restocked ${restockAmount} units of ${restockItem.name}`);
+    } catch (error) {
+      console.error('Error restocking item:', error);
+      toast.error('Failed to restock item');
+    }
   };
 
   const lowStockCount = items.filter(i => i.stock < i.minStock).length;

@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
+import { mediSyncServices } from "@/lib/firebase-services";
+import { toast } from "sonner";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { 
   UserCheck, 
   Bed,
@@ -13,9 +16,14 @@ import {
   ShieldCheck,
   FileText,
   X,
-  Zap
+  Zap,
+  MapPin,
+  Activity,
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // --- Types ---
 interface Patient {
@@ -28,22 +36,213 @@ interface Patient {
 }
 
 const Admission = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const patientIdFromQuery = searchParams.get('patientId');
+  const tokenIdFromQuery = searchParams.get('tokenId');
+  
   // 1. Core State
   const [currentStep, setCurrentStep] = useState(1);
   const [activePatient, setActivePatient] = useState<Patient | null>(null);
   const [assignedBed, setAssignedBed] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [bedSuggestions, setBedSuggestions] = useState<any[]>([]);
+  const [checkingBeds, setCheckingBeds] = useState(false);
   
   // 2. Queue Management
-  const [pendingPatients] = useState<Patient[]>([
-    { id: "ADM-001", name: "Suresh Verma", age: 56, department: "Cardiology", priority: "high", waitTime: "45 min" },
-    { id: "ADM-002", name: "Lakshmi Devi", age: 72, department: "General Medicine", priority: "urgent", waitTime: "20 min" },
-    { id: "ADM-003", name: "Kiran Kumar", age: 34, department: "Orthopedics", priority: "normal", waitTime: "1h 30min" },
-  ]);
+  const [pendingPatients, setPendingPatients] = useState<Patient[]>([]);
 
-  const bedSuggestions = [
-    { id: "GW-15", department: "General Ward", floor: "2nd Floor", features: ["Oxygen", "Monitor"], match: 95 },
-    { id: "CAR-05", department: "Cardiology", floor: "4th Floor", features: ["Oxygen", "Monitor", "ICU Access"], match: 82 },
-  ];
+  // Check bed availability from backend
+  const checkBedAvailability = async (department: string, bedType: 'general' | 'icu' | 'emergency' = 'general') => {
+    try {
+      setCheckingBeds(true);
+      const response = await fetch(`${API_BASE_URL}/api/city/heatmap-data`);
+      const data = await response.json();
+      
+      // Get hospitals with available beds
+      const hospitalsWithBeds = await Promise.all(
+        data.hospitals?.map(async (hospital: any) => {
+          try {
+            const occupancyResponse = await fetch(`${API_BASE_URL}/api/hospital/${hospital._id}/occupancy`);
+            const occupancyData = await occupancyResponse.json();
+            
+            return {
+              id: hospital._id,
+              name: hospital.name,
+              availableBeds: occupancyData.availableBeds || 0,
+              totalBeds: occupancyData.totalBeds || 0,
+              occupancyRate: occupancyData.occupancyRate || 0,
+              location: hospital.location
+            };
+          } catch (error) {
+            return null;
+          }
+        }) || []
+      );
+
+      // Filter and sort by best match
+      const availableHospitals = hospitalsWithBeds
+        .filter((h: any) => h && h.availableBeds > 0)
+        .map((hospital: any) => ({
+          id: `HOSP-${hospital.id}`,
+          hospitalName: hospital.name,
+          department: department,
+          floor: "Multiple Floors",
+          bedType: bedType,
+          availableBeds: hospital.availableBeds,
+          totalBeds: hospital.totalBeds,
+          occupancyRate: hospital.occupancyRate,
+          score: calculateBedMatch(hospital, department, bedType)
+        }))
+        .sort((a: any, b: any) => b.score - a.score)
+        .slice(0, 5); // Top 5 best matches
+      
+      setBedSuggestions(availableHospitals);
+      return availableHospitals;
+      
+    } catch (error) {
+      console.error('Error checking bed availability:', error);
+      
+      // Fallback to Firebase
+      try {
+        const firebaseBeds = await mediSyncServices.beds.getAllBeds();
+        setBedSuggestions(firebaseBeds);
+        return firebaseBeds;
+      } catch (firebaseError) {
+        console.error('Firebase fallback also failed:', firebaseError);
+        setBedSuggestions([]);
+        return [];
+      }
+    }
+  };
+
+  const calculateBedMatch = (hospital: any, department: string, bedType: string) => {
+    let score = 50; // Base score
+    
+    // Availability score (more available = higher score)
+    const availabilityScore = Math.min((hospital.availableBeds / hospital.totalBeds) * 30, 30);
+    score += availabilityScore;
+    
+    // Occupancy score (lower occupancy = higher score)
+    const occupancyScore = (1 - hospital.occupancyRate / 100) * 20;
+    score += occupancyScore;
+    
+    return Math.min(Math.round(score), 100);
+  };
+
+  // Load data from Firebase on mount
+  useEffect(() => {
+    const loadAdmissionData = async () => {
+      try {
+        setLoading(true);
+        
+        // Check if patientId is in query params (from OPD workflow)
+        if (patientIdFromQuery) {
+          const admissionsData = await mediSyncServices.admissions.getAll();
+          const admissionData = admissionsData && typeof admissionsData === 'object' 
+            ? Object.values(admissionsData).find((adm: any) => adm.id === patientIdFromQuery)
+            : null;
+          
+          if (admissionData) {
+            const patient: Patient = {
+              id: admissionData.id,
+              name: admissionData.patientName || 'Unknown Patient',
+              age: admissionData.age || 0,
+              department: admissionData.department || 'General',
+              priority: admissionData.priority || 'normal',
+              waitTime: '0 min'
+            };
+            
+            setActivePatient(patient);
+            setCurrentStep(3); // Jump to bed assignment
+            
+            // Automatically check bed availability
+            await checkBedAvailability(patient.department);
+            
+            // Update admission status
+            await mediSyncServices.admissions.update(patientIdFromQuery, {
+              status: 'processing',
+              processingStartedAt: new Date().toISOString()
+            });
+          }
+        }
+        
+        const admissionsData = await mediSyncServices.admissions.getAll();
+        
+        if (admissionsData) {
+          const dataArray = typeof admissionsData === 'object' && !Array.isArray(admissionsData)
+            ? Object.values(admissionsData)
+            : Array.isArray(admissionsData) ? admissionsData : [];
+            
+          // Filter for pending admissions
+          const pending = dataArray
+            .filter((adm: any) => adm.status === 'pending')
+            .map((adm: any) => ({
+              id: adm.id,
+              name: adm.patientName || 'Unknown Patient',
+              age: adm.age || 0,
+              department: adm.department || 'General',
+              priority: adm.priority || 'normal',
+              waitTime: adm.waitTime || '30 min'
+            }));
+          
+          setPendingPatients(pending);
+        } else {
+          // Initialize with default data
+          const defaultPatients: Patient[] = [
+            { id: "ADM-001", name: "Suresh Verma", age: 56, department: "Cardiology", priority: "high", waitTime: "45 min" },
+            { id: "ADM-002", name: "Lakshmi Devi", age: 72, department: "General Medicine", priority: "urgent", waitTime: "20 min" },
+            { id: "ADM-003", name: "Kiran Kumar", age: 34, department: "Orthopedics", priority: "normal", waitTime: "1h 30min" },
+          ];
+          
+          // Add to Firebase
+          for (const patient of defaultPatients) {
+            await mediSyncServices.admissions.create({
+              ...patient,
+              status: 'pending',
+              createdAt: new Date().toISOString()
+            });
+          }
+          
+          setPendingPatients(defaultPatients);
+        }
+      } catch (error) {
+        console.error('Error loading admission data:', error);
+        toast.error('Failed to load admission data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAdmissionData();
+    
+    // Listen for real-time updates
+    const unsubscribe = mediSyncServices.admissions.listen((admissionsData) => {
+      if (admissionsData) {
+        const dataArray = typeof admissionsData === 'object' && !Array.isArray(admissionsData)
+          ? Object.values(admissionsData)
+          : Array.isArray(admissionsData) ? admissionsData : [];
+          
+        const pending = dataArray
+          .filter((adm: any) => adm.status === 'pending')
+          .map((adm: any) => ({
+            id: adm.id,
+            name: adm.patientName || 'Unknown Patient',
+            age: adm.age || 0,
+            department: adm.department || 'General',
+            priority: adm.priority || 'normal',
+            waitTime: adm.waitTime || '30 min'
+          }));
+        
+        setPendingPatients(pending);
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [patientIdFromQuery]);
+
 
   const admissionSteps = [
     { id: 1, title: "Registration", icon: User },
@@ -56,30 +255,93 @@ const Admission = () => {
   // --- Functional Handlers ---
 
   // Standard Admission Path
-  const handleProcessPatient = (patient: Patient) => {
-    setActivePatient(patient);
-    setAssignedBed(null);
-    setCurrentStep(3); // Jump to Bed Assignment for queue patients
+  const handleProcessPatient = async (patient: Patient) => {
+    try {
+      setActivePatient(patient);
+      setAssignedBed(null);
+      setCurrentStep(3); // Jump to Bed Assignment for queue patients
+      
+      // Update admission status in Firebase
+      await mediSyncServices.admissions.update(patient.id, {
+        status: 'processing',
+        processingStartedAt: new Date().toISOString()
+      });
+      
+      // Check bed availability automatically
+      await checkBedAvailability(patient.department);
+      
+      toast.success(`Processing admission for ${patient.name}`);
+    } catch (error) {
+      console.error('Error processing patient:', error);
+      toast.error('Failed to process patient admission');
+    }
   };
 
   // Direct Admission Path (Emergency/New Case)
-  const handleDirectAdmission = () => {
-    const directPatient: Patient = {
-      id: `DIR-${Math.floor(100 + Math.random() * 900)}`,
-      name: "Emergency Entry",
-      age: 0,
-      department: "Emergency",
-      priority: "urgent",
-      waitTime: "0 min"
-    };
-    setActivePatient(directPatient);
-    setAssignedBed(null);
-    setCurrentStep(3); // Move immediately to Bed Assignment
+  const handleDirectAdmission = async () => {
+    try {
+      const directPatient: Patient = {
+        id: `DIR-${Math.floor(100 + Math.random() * 900)}`,
+        name: "Emergency Entry",
+        age: 0,
+        department: "Emergency",
+        priority: "urgent",
+        waitTime: "0 min"
+      };
+      
+      // Create admission record in Firebase
+      await mediSyncServices.admissions.create({
+        ...directPatient,
+        status: 'processing',
+        createdAt: new Date().toISOString()
+      });
+      
+      setActivePatient(directPatient);
+      setAssignedBed(null);
+      setCurrentStep(3); // Move immediately to Bed Assignment
+      
+      toast.success('Emergency admission initiated');
+    } catch (error) {
+      console.error('Error creating direct admission:', error);
+      toast.error('Failed to create emergency admission');
+    }
   };
 
-  const handleAssignBed = (bedId: string) => {
-    setAssignedBed(bedId);
-    setCurrentStep(4); // Advance to Documentation
+  const handleAssignBed = async (bed: any) => {
+    try {
+      setAssignedBed(bed.id);
+      setCurrentStep(4); // Advance to Documentation
+      
+      // Update bed status in Firebase
+      await mediSyncServices.beds.updateStatus(bed.id, "occupied");
+      
+      // Update admission record
+      if (activePatient) {
+        await mediSyncServices.admissions.update(activePatient.id, {
+          assignedBed: bed.id,
+          assignedHospital: bed.hospitalName,
+          bedAssignedAt: new Date().toISOString(),
+          status: 'bed-assigned'
+        });
+      }
+      
+      // If coming from OPD, update token status
+      if (tokenIdFromQuery && activePatient) {
+        await mediSyncServices.smartOPD.updateToken(tokenIdFromQuery, {
+          status: 'completed',
+          admissionId: activePatient.id,
+          completedAt: new Date().toISOString()
+        });
+      }
+      
+      toast.success(`Bed assigned at ${bed.hospitalName}`, {
+        description: `Patient will be admitted to ${bed.department}`,
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Error assigning bed:', error);
+      toast.error('Failed to assign bed');
+    }
   };
 
   const resetWorkflow = () => {
@@ -193,20 +455,61 @@ const Admission = () => {
 
                 {currentStep === 3 ? (
                   <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                    {bedSuggestions.map((bed) => (
-                      <div key={bed.id} className="p-4 rounded-xl border border-border hover:border-primary/50 transition-all">
-                        <div className="flex justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Bed className="w-5 h-5 text-primary" /></div>
-                            <div><p className="font-bold text-sm">{bed.id}</p><p className="text-[10px] text-muted-foreground uppercase">{bed.floor}</p></div>
-                          </div>
-                          <span className="text-xs font-bold text-success">{bed.match}% Match</span>
+                    {checkingBeds ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Activity className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+                          <p className="text-sm text-muted-foreground">Checking bed availability...</p>
                         </div>
-                        <Button variant="success" size="sm" className="w-full" onClick={() => handleAssignBed(bed.id)}>
-                          Assign This Bed <ArrowRight className="w-3 h-3 ml-2" />
+                      </div>
+                    ) : bedSuggestions.length > 0 ? (
+                      <>
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-2 text-blue-800">
+                            <AlertTriangle className="w-4 h-4" />
+                            <span className="text-sm font-semibold">Found {bedSuggestions.length} available bed options</span>
+                          </div>
+                        </div>
+                        {bedSuggestions.map((bed) => (
+                          <div key={bed.id} className="p-4 rounded-xl border border-border hover:border-primary/50 transition-all hover:shadow-md">
+                            <div className="flex justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                                  <Bed className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                  <p className="font-bold text-sm">{bed.hospitalName}</p>
+                                  <p className="text-[10px] text-muted-foreground uppercase">{bed.department} • {bed.floor}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs font-bold text-success block">{bed.match}% Match</span>
+                                <span className="text-xs text-muted-foreground">{bed.availableBeds} beds available</span>
+                              </div>
+                            </div>
+                            <div className="mb-3 flex flex-wrap gap-2">
+                              {bed.features.map((feature: string, idx: number) => (
+                                <span key={idx} className="text-xs px-2 py-1 bg-muted rounded">{feature}</span>
+                              ))}
+                            </div>
+                            <Button variant="default" size="sm" className="w-full" onClick={() => handleAssignBed(bed)}>
+                              Assign This Bed <ArrowRight className="w-3 h-3 ml-2" />
+                            </Button>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="text-center py-12">
+                        <Bed className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                        <p className="font-semibold mb-2">No beds available</p>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          All beds are currently occupied. Please check alternative hospitals.
+                        </p>
+                        <Button variant="outline" onClick={() => checkBedAvailability(activePatient?.department || 'General')}>
+                          Refresh Availability
                         </Button>
                       </div>
-                    ))}
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-12">
