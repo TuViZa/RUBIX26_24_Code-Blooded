@@ -77,7 +77,7 @@ export function AppSidebar() {
         <div className="p-4 space-y-4 bg-gradient-to-b from-teal-950/50 to-slate-900 border-b border-teal-800/50">
           <Link to="/" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center shadow-medium shrink-0 border-2 border-teal-400 bg-white">
-              <img src="/logo.png" alt="CuraNet Logo" className="w-full h-full object-cover" />
+              <img src="/curanet.jpeg" alt="CuraNet Logo" className="w-full h-full object-cover" />
             </div>
             {!collapsed && (
               <span 
