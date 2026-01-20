@@ -1,174 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle, MapPin } from 'lucide-react';
+import React from 'react';
+import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for default marker icon in React-Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
-
-const OutbreakMap = () => {
-  const [hospitalData, setHospitalData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [showOutbreakView, setShowOutbreakView] = useState(true);
-
+const OutbreakMap = ({ hospitalData = [], loading = false }) => {
   // Mumbai center coordinates
   const mumbaiCenter = [19.0760, 72.8777];
 
-  useEffect(() => {
-    const fetchHeatmapData = async () => {
-      try {
-        setLoading(true);
-        console.log('Fetching from: http://localhost:5000/api/hospital/heatmap-data');
-        
-        const response = await fetch('http://localhost:5000/api/hospital/heatmap-data');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('Hospitals Loaded:', data);
-        
-        setHospitalData(data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching heatmap data:', err);
-        setError('Failed to load heatmap data');
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Color logic based on occupancy_ratio
+  const getColor = (ratio) => {
+    if (ratio > 0.8) return '#DC2626'; // red - critical
+    if (ratio >= 0.6) return '#F97316'; // orange - warning
+    return '#EAB308'; // yellow - normal
+  };
 
-    fetchHeatmapData();
-    
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchHeatmapData, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  const blueIcon = L.divIcon({
-    className: 'custom-div-icon',
-    html: `<div style="background-color: #3B82F6; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-    iconSize: [12, 12],
-    iconAnchor: [6, 6]
+  // Filter out hospitals with invalid coordinates
+  const validHospitalData = hospitalData.filter(hospital => {
+    const lat = parseFloat(hospital.lat);
+    const lng = parseFloat(hospital.lng);
+    return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
   });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96 bg-muted rounded-xl">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-          <p className="text-muted-foreground">Loading outbreak map...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-96 bg-muted rounded-xl">
-        <div className="text-center">
-          <div className="text-critical mb-2">⚠️</div>
-          <p className="text-critical">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full h-96 rounded-xl overflow-hidden border border-border relative">
-      {/* Toggle Button */}
-      <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-lg p-2">
-        <Button
-          variant={showOutbreakView ? "default" : "outline"}
-          size="sm"
-          onClick={() => setShowOutbreakView(!showOutbreakView)}
-          className="flex items-center gap-2"
-        >
-          {showOutbreakView ? (
-            <>
-              <AlertTriangle className="w-4 h-4" />
-              Outbreak View
-            </>
-          ) : (
-            <>
-              <MapPin className="w-4 h-4" />
-              Hospital View
-            </>
-          )}
-        </Button>
-      </div>
-
-      {/* Legend */}
-      <div className="absolute bottom-4 right-4 z-10 bg-white rounded-lg shadow-lg p-3 max-w-xs">
-        <div className="flex items-center gap-2 text-sm">
-          <div className="w-4 h-4 rounded-full bg-red-500"></div>
-          <span className="font-medium">Red Zone = High Patient Load / Potential Outbreak</span>
+    <div className="relative" style={{ height: '500px', width: '100%' }}>
+      {/* Warning overlay for data issues */}
+      {(!loading && validHospitalData.length === 0) && (
+        <div className="absolute top-4 right-4 z-10 bg-yellow-100 border border-yellow-400 text-yellow-800 px-3 py-2 rounded-lg text-sm">
+          ⚠️ No hospital data available
         </div>
-      </div>
+      )}
 
       <MapContainer
         center={mumbaiCenter}
         zoom={11}
         style={{ height: '100%', width: '100%' }}
-        className="z-0"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        {/* Heatmap View - Show intensity as colored circles */}
-        {showOutbreakView && hospitalData.map((hospital, index) => {
-          const intensity = hospital.intensity || 0.5;
-          const size = Math.max(30, intensity * 100);
+        {/* Permanent debug marker at Mumbai center */}
+        <CircleMarker
+          center={mumbaiCenter}
+          radius={20}
+          fillColor="#3B82F6"
+          color="#3B82F6"
+          weight={2}
+          opacity={0.8}
+          fillOpacity={0.5}
+        >
+          <div>Mumbai Center</div>
+        </CircleMarker>
+        
+        {/* Hospital data markers */}
+        {validHospitalData.map((hospital) => {
+          const ratio = parseFloat(hospital.occupancy_ratio) || 0;
+          const radius = 10 + ratio * 30;
+          const color = ratio > 0.8 ? '#DC2626' : ratio > 0.6 ? '#F97316' : '#EAB308';
+          const lat = parseFloat(hospital.lat);
+          const lng = parseFloat(hospital.lng);
           
           return (
-            <div
-              key={index}
-              style={{
-                position: 'absolute',
-                width: `${size}px`,
-                height: `${size}px`,
-                borderRadius: '50%',
-                backgroundColor: `rgba(255, ${Math.floor(100 * (1 - intensity))}, ${Math.floor(100 * (1 - intensity))}, ${intensity * 0.9})`,
-                left: `${((hospital.lng - 72.8777) * 50) + 50}%`,
-                top: `${((19.0760 - hospital.lat) * 50) + 50}%`,
-                transform: 'translate(-50%, -50%)',
-                zIndex: 9999,
-                border: '3px solid rgba(255, 255, 255, 0.6)',
-                boxShadow: `0 0 ${size/2}px rgba(255, ${Math.floor(150 * (1 - intensity))}, ${Math.floor(150 * (1 - intensity))}, ${intensity * 0.7})`,
-                pointerEvents: 'none'
-              }}
-            />
+            <CircleMarker
+              key={`hospital-${hospital.id}`}
+              center={[lat, lng]}
+              radius={radius}
+              fillColor={color}
+              color={color}
+              weight={2}
+              opacity={0.8}
+              fillOpacity={0.5}
+            >
+              <div>
+                <strong>{hospital.name}</strong><br/>
+                Occupancy: {(ratio * 100).toFixed(1)}%<br/>
+                Beds: {hospital.total_beds || 'N/A'}
+              </div>
+            </CircleMarker>
           );
         })}
-        
-        {/* Hospital View - Show markers */}
-        {!showOutbreakView && hospitalData.map((hospital, index) => (
-          <Marker
-            key={index}
-            position={[hospital.lat, hospital.lng]}
-            icon={blueIcon}
-          >
-            <Popup>
-              <div className="text-sm">
-                <strong>Hospital Location</strong><br />
-                Lat: {hospital.lat.toFixed(4)}<br />
-                Lng: {hospital.lng.toFixed(4)}<br />
-                Load: {(hospital.intensity * 100).toFixed(1)}%
-              </div>
-            </Popup>
-          </Marker>
-        ))}
       </MapContainer>
     </div>
   );

@@ -4,7 +4,11 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const hospitalRoutes = require('./routes/hospitalRoutes');
+const { router: cityRoutes } = require('./routes/cityRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const outbreakRoutes = require('./routes/outbreakRoutes');
 const Hospital = require('./models/Hospital');
+const { setupChangeStreams, initializeSocketRooms, getInitialCitySummary } = require('./services/changeStreamService');
 
 const app = express();
 const server = http.createServer(app);
@@ -96,13 +100,28 @@ setTimeout(() => {
   checkLowStock();
 }, 10000);
 
-// Socket.io connection
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+// Socket.io connection with real-time updates
+io.on('connection', async (socket) => {
+  initializeSocketRooms(socket);
   
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
+  // Send initial data to new connections
+  try {
+    const initialSummary = await getInitialCitySummary();
+    socket.emit('city_update', initialSummary);
+    console.log('📊 Sent initial city summary to new connection');
+    
+    // Send initial wastage summary
+    const initialWastageSummary = await getCityWastageSummary();
+    socket.emit('city_wastage_update', initialWastageSummary);
+    console.log('💊 Sent initial wastage summary to new connection');
+    
+    // Send initial outbreak summary
+    const initialOutbreakSummary = await getOutbreakSummary();
+    socket.emit('outbreak_update', initialOutbreakSummary);
+    console.log('🦠 Sent initial outbreak summary to new connection');
+  } catch (error) {
+    console.error('Error sending initial data:', error);
+  }
 });
 
 // Basic route
@@ -113,6 +132,25 @@ app.get('/', (req, res) => {
 // Hospital routes
 app.use('/api/hospital', hospitalRoutes);
 
-server.listen(PORT, () => {
+// City routes
+app.use('/api/city', cityRoutes);
+
+// Inventory routes
+app.use('/api/inventory', inventoryRoutes);
+
+// Outbreak routes
+app.use('/api/outbreak', outbreakRoutes);
+
+server.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  
+  // Setup change streams after server starts
+  try {
+    // Wait a bit for MongoDB connection to be fully established
+    setTimeout(async () => {
+      await setupChangeStreams(io, mongoose);
+    }, 2000);
+  } catch (error) {
+    console.error('Error setting up change streams:', error);
+  }
 });

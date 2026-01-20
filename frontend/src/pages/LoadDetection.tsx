@@ -11,9 +11,17 @@ import {
 import { cn } from "@/lib/utils";
 import Papa from "papaparse";
 
+interface HospitalData {
+  timestamp: string;
+  hospital: string;
+  avg_wait_time: number;
+  bed_occupancy: number;
+  [key: string]: any; // Allow additional properties
+}
+
 const LoadDetection = () => {
-  const [data, setData] = useState([]);
-  const [timestamps, setTimestamps] = useState([]);
+  const [data, setData] = useState<HospitalData[]>([]);
+  const [timestamps, setTimestamps] = useState<string[]>([]);
   const [currentTimeIdx, setCurrentTimeIdx] = useState(0);
   const [selectedHospital, setSelectedHospital] = useState("");
 
@@ -27,7 +35,7 @@ const LoadDetection = () => {
           dynamicTyping: true,
           skipEmptyLines: true,
           complete: (results) => {
-            const clean = results.data.filter(r => r.timestamp && r.hospital);
+            const clean = (results.data as HospitalData[]).filter(r => r.timestamp && r.hospital);
             setData(clean);
             const ts = [...new Set(clean.map(r => r.timestamp))].sort();
             setTimestamps(ts);

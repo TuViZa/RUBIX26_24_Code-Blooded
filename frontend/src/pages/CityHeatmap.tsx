@@ -1,4 +1,6 @@
-import { AppLayout } from "@/components/layout/AppLayout";
+import { useHospitalOccupancy } from '@/hooks/useHospitalOccupancy'
+import { useEffect } from 'react'
+
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
@@ -16,8 +18,17 @@ import {
 import { cn } from "@/lib/utils";
 
 const CityHeatmap = () => {
+  // 👇 ADD THESE LINES HERE
+  const { data, loading, refresh } = useHospitalOccupancy()
+
+  useEffect(() => {
+    if (!loading) {
+      console.log('Hospital occupancy data:', data)
+    }
+  }, [loading, data])
+  // 👆 ADD THESE LINES HERE
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -30,7 +41,7 @@ const CityHeatmap = () => {
               <Layers className="w-4 h-4 mr-2" />
               Toggle Layers
             </Button>
-            <Button variant="hero" size="sm">
+            <Button variant="hero" size="sm" onClick={refresh}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh Data
             </Button>
@@ -44,7 +55,7 @@ const CityHeatmap = () => {
               <h2 className="font-display font-semibold">Live Hospital Heatmap</h2>
               <p className="text-sm text-muted-foreground mt-1">Real-time bed occupancy intensity across Mumbai</p>
             </div>
-            <OutbreakMap />
+            <OutbreakMap hospitalData={data} loading={loading} />
           </div>
 
           {/* Real-time Stats */}
@@ -73,7 +84,7 @@ const CityHeatmap = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+    
   );
 };
 

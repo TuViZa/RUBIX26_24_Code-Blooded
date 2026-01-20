@@ -10,6 +10,15 @@ import {
 import { cn } from "@/lib/utils";
 import Papa from "papaparse";
 
+interface HospitalData {
+  timestamp: string;
+  hospital: string;
+  avg_wait_time: number;
+  bed_occupancy: number;
+  inventory_days: number;
+  patients_waiting: number;
+}
+
 /* ---------------- INTERVENTION ENGINE ---------------- */
 const INTERVENTION_LOGIC = {
   "Extreme OPD Wait": {
@@ -50,7 +59,17 @@ const INTERVENTION_LOGIC = {
 };
 
 /* ---------------- MINI HOSPITAL CARD ---------------- */
-const HospitalNodeCard = ({ data, isActive, onClick, alerts }) => {
+const HospitalNodeCard = ({ 
+  data, 
+  isActive, 
+  onClick, 
+  alerts 
+}: { 
+  data: HospitalData; 
+  isActive: boolean; 
+  onClick: () => void; 
+  alerts: string[] 
+}) => {
   const isCritical = alerts.some(a => a.includes("Extreme") || a.includes("Zero") || a.includes("Stockout"));
   
   return (
@@ -88,8 +107,8 @@ const HospitalNodeCard = ({ data, isActive, onClick, alerts }) => {
 
 /* ---------------- MAIN DASHBOARD ---------------- */
 const Dashboard = () => {
-  const [data, setData] = useState([]);
-  const [timestamps, setTimestamps] = useState([]);
+  const [data, setData] = useState<HospitalData[]>([]);
+  const [timestamps, setTimestamps] = useState<string[]>([]);
   const [currentTimeIdx, setCurrentTimeIdx] = useState(0);
   const [selectedHospital, setSelectedHospital] = useState("");
   const [completedActions, setCompletedActions] = useState(new Set());
@@ -103,8 +122,8 @@ const Dashboard = () => {
           header: true,
           dynamicTyping: true,
           skipEmptyLines: true,
-          complete: (results) => {
-            const clean = results.data.filter(r => r.timestamp && r.hospital);
+          complete: (results: { data: HospitalData[] }) => {
+            const clean = results.data.filter((r: HospitalData) => r.timestamp && r.hospital);
             setData(clean);
             const ts = [...new Set(clean.map(r => r.timestamp))].sort();
             setTimestamps(ts);
@@ -125,11 +144,11 @@ const Dashboard = () => {
   const currentTime = timestamps[currentTimeIdx];
   const hospitalsNow = useMemo(() => data.filter(d => d.timestamp === currentTime), [data, currentTime]);
   const activeData = useMemo(() => 
-    hospitalsNow.find(h => h.hospital === selectedHospital) || hospitalsNow[0], 
+    hospitalsNow.find(h => h.hospital === selectedHospital) || hospitalsNow[0] || undefined, 
   [hospitalsNow, selectedHospital]);
 
   // Alert generation logic from index1.html
-  const getAlertsForHosp = (h) => {
+  const getAlertsForHosp = (h: HospitalData | undefined) => {
     const alerts = [];
     if (!h) return alerts;
     if (h.avg_wait_time > 60) alerts.push("Extreme OPD Wait");
@@ -248,7 +267,7 @@ const Dashboard = () => {
               <div className="space-y-4">
                 {currentAlerts.length > 0 ? currentAlerts.map((alertKey, i) => {
                   const action = INTERVENTION_LOGIC[alertKey];
-                  const isDone = completedActions.has(`${activeData.hospital}-${action.title}`);
+                  const isDone = activeData ? completedActions.has(`${activeData.hospital}-${action.title}`) : false;
                   const Icon = action.icon;
 
                   return (
@@ -268,7 +287,7 @@ const Dashboard = () => {
                               size="sm" 
                               variant="secondary" 
                               className="w-full rounded-xl font-bold text-[10px] uppercase tracking-wider"
-                              onClick={() => setCompletedActions(prev => new Set(prev).add(`${activeData.hospital}-${action.title}`))}
+                              onClick={() => activeData && setCompletedActions(prev => new Set(prev).add(`${activeData.hospital}-${action.title}`))}
                             >
                               Execute Protocol
                             </Button>

@@ -89,7 +89,7 @@ const Admission = () => {
   };
 
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         {/* Header with Direct Admission Trigger */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -231,7 +231,7 @@ const Admission = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+    
   );
 };
 

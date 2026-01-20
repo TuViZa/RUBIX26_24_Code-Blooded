@@ -83,7 +83,7 @@ const HospitalNetwork = () => {
   };
 
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -306,7 +306,7 @@ const HospitalNetwork = () => {
           </div>
         )}
       </div>
-    </AppLayout>
+    
   );
 };
 

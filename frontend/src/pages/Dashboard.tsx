@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { supabase } from "@/lib/supabaseClient";
 import { 
   Activity, 
   Building2, 
@@ -54,16 +54,22 @@ const Dashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hospitals, setHospitals] = useState<any[]>([]);
 
-  // Fetch real hospital data from backend
+  // Fetch hospital data from Supabase
   useEffect(() => {
     const fetchHospitalData = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/hospital/heatmap-data');
-        console.log('Hospitals Loaded:', response.data);
-        setHospitals(response.data);
+        const { data, error } = await supabase
+          .from('hospitals')
+          .select('*');
+        
+        if (error) {
+          console.error('Error fetching hospital data:', error);
+        } else {
+          console.log('Hospitals Loaded:', data);
+          setHospitals(Array.isArray(data) ? data : []);
+        }
       } catch (error) {
         console.error('Error fetching hospital data:', error);
-        toast.error('Failed to load hospital data');
       }
     };
 

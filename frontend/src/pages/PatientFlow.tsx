@@ -6,8 +6,24 @@ import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from 'recharts';
 
 // LEAFLET IMPORTS
-import { MapContainer, TileLayer, Polygon, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Polygon, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+
+// Fix for default markers in react-leaflet
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
+});
+
+// Component to set initial view
+const MapInitializer = () => {
+  const map = useMap();
+  map.setView([19.0760, 72.8777], 11);
+  return null;
+};
 
 /**
  * SNAP-TO-POINT COORDINATES
@@ -56,8 +72,23 @@ const MUMBAI_BOUNDS = {
   ],
 };
 
+interface PatientFlowRecord {
+  timestamp?: string;
+  origin_district: string;
+  patient_count: number;
+  priority_level: string;
+}
+
+interface ProcessedDistrict {
+  id: string;
+  from: string;
+  patients: number;
+  criticalCount: number;
+  bounds: [number, number][];
+}
+
 const PatientFlow = () => {
-  const [rawData, setRawData] = useState<any[]>([]);
+  const [rawData, setRawData] = useState<PatientFlowRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
   const [timeFilter, setTimeFilter] = useState<string>("10");
@@ -74,7 +105,7 @@ const PatientFlow = () => {
 
   const processedData = useMemo(() => {
     if (!rawData.length) return [];
-    const summary: Record<string, any> = {};
+    const summary: Record<string, ProcessedDistrict> = {};
     rawData.forEach((record) => {
       const recordHour = record.timestamp?.split('T')[1]?.split(':')[0];
       if (recordHour !== timeFilter) return;
@@ -113,14 +144,14 @@ const PatientFlow = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-8 bg-white rounded-[1.5rem] border relative min-h-[550px] shadow-sm overflow-hidden z-0">
             <MapContainer 
-              center={[19.0760, 72.8777]} 
-              zoom={11} 
               className="h-full w-full grayscale-[0.2] brightness-[0.95]"
-              attributionControl={false}
               style={{ height: "550px" }}
             >
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              {processedData.map((district: any) => {
+              <MapInitializer />
+              <TileLayer 
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
+              />
+              {processedData.map((district: ProcessedDistrict) => {
                 const zoneColor = getHeatColor(district.patients, district.criticalCount);
                 return (
                   <Polygon

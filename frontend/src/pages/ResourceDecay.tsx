@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useResourceDecay } from "@/hooks/useResourceDecay";
 import { 
   Trash2, 
   AlertTriangle, 
@@ -14,79 +15,48 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface ResourceItem {
-  id: string;
-  name: string;
-  category: string;
-  currentStock: number;
-  usageVelocity: number;
-  expiryDate: string;
-  wasteRisk: "low" | "medium" | "high" | "critical";
-  lastUpdated: string;
-  location: string;
-}
 
 const ResourceDecay = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const { resources = [], loading } = useResourceDecay();
 
-  const resources: ResourceItem[] = [
-    {
-      id: "1",
-      name: "Paracetamol 500mg",
-      category: "Medicine",
-      currentStock: 245,
-      usageVelocity: 12,
-      expiryDate: "2024-03-15",
-      wasteRisk: "high",
-      lastUpdated: "2 hours ago",
-      location: "Pharmacy A"
-    },
-    {
-      id: "2", 
-      name: "IV Catheters",
-      category: "Equipment",
-      currentStock: 89,
-      usageVelocity: 3,
-      expiryDate: "2024-06-30",
-      wasteRisk: "medium",
-      lastUpdated: "1 hour ago",
-      location: "Storage B"
-    },
-    {
-      id: "3",
-      name: "Surgical Gloves",
-      category: "Supplies",
-      currentStock: 1200,
-      usageVelocity: 45,
-      expiryDate: "2024-04-20",
-      wasteRisk: "low",
-      lastUpdated: "30 mins ago",
-      location: "Supply Room C"
-    },
-    {
-      id: "4",
-      name: "Insulin Vials",
-      category: "Medicine",
-      currentStock: 34,
-      usageVelocity: 2,
-      expiryDate: "2024-02-10",
-      wasteRisk: "critical",
-      lastUpdated: "15 mins ago",
-      location: "Refrigerator D"
-    },
-    {
-      id: "5",
-      name: "Blood Bags O+",
-      category: "Blood",
-      currentStock: 8,
-      usageVelocity: 1,
-      expiryDate: "2024-02-05",
-      wasteRisk: "critical",
-      lastUpdated: "5 mins ago",
-      location: "Blood Bank"
+  // Helper function to format time ago
+  function formatTimeAgo(date: string | null | undefined): string {
+    if (!date) return "Unknown";
+    
+    try {
+      const now = new Date();
+      const past = new Date(date);
+      if (isNaN(past.getTime())) return "Unknown";
+      
+      const diffMs = now.getTime() - past.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      
+      if (diffMins < 60) {
+        return `${diffMins} mins ago`;
+      } else if (diffMins < 1440) {
+        return `${Math.floor(diffMins / 60)} hours ago`;
+      } else {
+        return `${Math.floor(diffMins / 1440)} days ago`;
+      }
+    } catch (error) {
+      return "Unknown";
     }
-  ];
+  }
+
+  // Transform data to match UI expectations
+  const transformedResources = Array.isArray(resources) ? resources.map((resource, index) => ({
+    id: `resource-${index}-${resource?.name || 'unknown'}-${resource?.location || 'unknown'}`,
+    name: resource?.name || 'Unknown',
+    category: resource?.category || 'Unknown',
+    currentStock: resource?.current_stock || 0,
+    usageVelocity: resource?.usage_velocity || 0,
+    expiryDate: resource?.expiry_date || 'Unknown',
+    wasteRisk: resource?.waste_risk || 'unknown',
+    lastUpdated: formatTimeAgo(resource?.last_updated),
+    location: resource?.location || 'Unknown'
+  })) : [];
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -108,9 +78,9 @@ const ResourceDecay = () => {
     }
   };
 
-  const filteredResources = resources.filter(resource => {
-    const matchesSearch = resource.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || resource.category === selectedCategory;
+  const filteredResources = Array.isArray(transformedResources) && transformedResources.filter(resource => {
+    const matchesSearch = resource?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+    const matchesCategory = selectedCategory === "all" || resource?.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -139,7 +109,7 @@ const ResourceDecay = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Critical Risk Items</p>
-                  <p className="text-2xl font-bold text-red-600">2</p>
+                  <p className="text-2xl font-bold text-red-600">{Array.isArray(transformedResources) && transformedResources.filter(r => r.wasteRisk === 'critical').length}</p>
                 </div>
                 <AlertTriangle className="w-8 h-8 text-red-500" />
               </div>
@@ -151,7 +121,7 @@ const ResourceDecay = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">High Risk Items</p>
-                  <p className="text-2xl font-bold text-orange-600">1</p>
+                  <p className="text-2xl font-bold text-orange-600">{Array.isArray(transformedResources) && transformedResources.filter(r => r.wasteRisk === 'high').length}</p>
                 </div>
                 <TrendingDown className="w-8 h-8 text-orange-500" />
               </div>
@@ -163,7 +133,7 @@ const ResourceDecay = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Total Resources</p>
-                  <p className="text-2xl font-bold text-blue-600">156</p>
+                  <p className="text-2xl font-bold text-blue-600">{Array.isArray(transformedResources) ? transformedResources.length : 0}</p>
                 </div>
                 <Package className="w-8 h-8 text-blue-500" />
               </div>
@@ -175,7 +145,7 @@ const ResourceDecay = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Est. Monthly Waste</p>
-                  <p className="text-2xl font-bold text-gray-600">$12.4K</p>
+                  <p className="text-2xl font-bold text-gray-600">${Array.isArray(transformedResources) ? (transformedResources.reduce((sum, r) => sum + (r.currentStock * 10), 0) / 1000).toFixed(1) : 0}K</p>
                 </div>
                 <BarChart3 className="w-8 h-8 text-gray-500" />
               </div>
@@ -213,7 +183,7 @@ const ResourceDecay = () => {
               ))}
             </div>
 
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
@@ -222,7 +192,7 @@ const ResourceDecay = () => {
 
         {/* Resources List */}
         <div className="space-y-4">
-          {filteredResources.map((resource) => (
+          {Array.isArray(transformedResources) && transformedResources.map((resource) => (
             <Card key={resource.id} className={`border-l-4 ${getRiskBorder(resource.wasteRisk)}`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -284,7 +254,7 @@ const ResourceDecay = () => {
         </div>
 
         {/* Empty State */}
-        {filteredResources.length === 0 && (
+        {(!Array.isArray(transformedResources) || transformedResources.length === 0) && (
           <div className="text-center py-12">
             <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No resources found</h3>

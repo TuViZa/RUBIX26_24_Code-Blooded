@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDiseaseOutbreaks, type DiseaseOutbreak } from "@/hooks/useDiseaseOutbreaks";
 import { 
   Bug, 
   AlertTriangle, 
@@ -9,84 +10,36 @@ import {
   Users,
   Filter,
   Search,
-  RefreshCw,
   Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface Outbreak {
-  id: string;
-  disease: string;
-  severity: "low" | "medium" | "high" | "critical";
-  affectedAreas: string[];
-  reportedCases: number;
-  trend: "increasing" | "stable" | "decreasing";
-  seasonality: "annual" | "seasonal" | "sporadic";
-  detectionDate: string;
-  predictedPeak: string;
-  riskFactors: string[];
-  recommendations: string[];
-}
+const safeDate = (value?: string | null) => {
+  if (!value) return "N/A";
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? "N/A" : d.toISOString().split("T")[0];
+};
 
 const OutbreakDetection = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSeverity, setSelectedSeverity] = useState("all");
+  const { outbreaks = [], loading } = useDiseaseOutbreaks();
 
-  const outbreaks: Outbreak[] = [
-    {
-      id: "1",
-      disease: "Influenza Type A",
-      severity: "high",
-      affectedAreas: ["Downtown District", "North Suburbs", "East Side"],
-      reportedCases: 342,
-      trend: "increasing",
-      seasonality: "seasonal",
-      detectionDate: "2024-01-15",
-      predictedPeak: "2024-02-10",
-      riskFactors: ["Low vaccination rates", "Cold weather", "Indoor crowding"],
-      recommendations: ["Increase vaccination campaigns", "Public awareness", "Stockpile antivirals"]
-    },
-    {
-      id: "2",
-      disease: "Norovirus",
-      severity: "medium",
-      affectedAreas: ["West End", "Central District"],
-      reportedCases: 87,
-      trend: "stable",
-      seasonality: "annual",
-      detectionDate: "2024-01-20",
-      predictedPeak: "2024-02-05",
-      riskFactors: ["Food handling practices", "School gatherings"],
-      recommendations: ["Enhanced food safety inspections", "School hygiene programs"]
-    },
-    {
-      id: "3",
-      disease: "RSV (Respiratory Syncytial Virus)",
-      severity: "critical",
-      affectedAreas: ["Pediatric Ward - City General", "Children's Hospital"],
-      reportedCases: 156,
-      trend: "increasing",
-      seasonality: "seasonal",
-      detectionDate: "2024-01-10",
-      predictedPeak: "2024-01-28",
-      riskFactors: ["Vulnerable infant population", "Daycare centers"],
-      recommendations: ["Visitor restrictions", "Enhanced PPE protocols", "Parent education"]
-    },
-    {
-      id: "4",
-      disease: "Hand, Foot & Mouth Disease",
-      severity: "low",
-      affectedAreas: ["South District"],
-      reportedCases: 23,
-      trend: "decreasing",
-      seasonality: "sporadic",
-      detectionDate: "2024-01-18",
-      predictedPeak: "2024-01-25",
-      riskFactors: ["School environments", "Young children"],
-      recommendations: ["School monitoring", "Parent notifications"]
-    }
-  ];
+  // Transform data to match UI expectations
+  const transformedOutbreaks = Array.isArray(outbreaks) ? outbreaks.map((outbreak, index) => ({
+    id: (outbreak?.disease || '') + (outbreak?.area || ''),
+    disease: outbreak?.disease || 'Unknown',
+    severity: outbreak?.calculated_severity || 'unknown',
+    affectedAreas: [outbreak?.area || 'Unknown'],
+    reportedCases: outbreak?.total_cases || 0,
+    trend: outbreak?.trend || 'unknown',
+    seasonality: "seasonal", // Default value
+    detectionDate: outbreak?.first_detection ? new Date(outbreak.first_detection).toISOString().split("T")[0] : "N/A",
+    predictedPeak: outbreak?.latest_detection ? new Date(outbreak.latest_detection).toISOString().split("T")[0] : "N/A",
+    riskFactors: ["Community transmission", "Local spread"], // Default values
+    recommendations: ["Monitor situation", "Prepare response"] // Default values
+  })) : [];
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -107,12 +60,12 @@ const OutbreakDetection = () => {
     }
   };
 
-  const filteredOutbreaks = outbreaks.filter(outbreak => {
-    const matchesSearch = outbreak.disease.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         outbreak.affectedAreas.some(area => area.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesSeverity = selectedSeverity === "all" || outbreak.severity === selectedSeverity;
+  const filteredOutbreaks = Array.isArray(transformedOutbreaks) ? transformedOutbreaks.filter(outbreak => {
+    const matchesSearch = outbreak?.disease?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         outbreak?.affectedAreas?.some(area => area?.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSeverity = selectedSeverity === "all" || outbreak?.severity === selectedSeverity;
     return matchesSearch && matchesSeverity;
-  });
+  }) : [];
 
   const severities = ["all", "low", "medium", "high", "critical"];
 
@@ -139,7 +92,7 @@ const OutbreakDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Active Outbreaks</p>
-                  <p className="text-2xl font-bold text-red-600">4</p>
+                  <p className="text-2xl font-bold text-red-600">{Array.isArray(transformedOutbreaks) ? transformedOutbreaks.length : 0}</p>
                 </div>
                 <AlertTriangle className="w-8 h-8 text-red-500" />
               </div>
@@ -151,7 +104,7 @@ const OutbreakDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Total Cases</p>
-                  <p className="text-2xl font-bold text-orange-600">608</p>
+                  <p className="text-2xl font-bold text-orange-600">{Array.isArray(transformedOutbreaks) ? transformedOutbreaks.reduce((sum, o) => sum + (o?.reportedCases || 0), 0) : 0}</p>
                 </div>
                 <Users className="w-8 h-8 text-orange-500" />
               </div>
@@ -163,7 +116,7 @@ const OutbreakDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Critical Alerts</p>
-                  <p className="text-2xl font-bold text-red-600">1</p>
+                  <p className="text-2xl font-bold text-red-600">{Array.isArray(transformedOutbreaks) ? transformedOutbreaks.filter(o => o?.severity === 'critical').length : 0}</p>
                 </div>
                 <Shield className="w-8 h-8 text-red-500" />
               </div>
@@ -175,7 +128,7 @@ const OutbreakDetection = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Areas Affected</p>
-                  <p className="text-2xl font-bold text-blue-600">8</p>
+                  <p className="text-2xl font-bold text-blue-600">{Array.isArray(transformedOutbreaks) ? transformedOutbreaks.reduce((sum, o) => sum + (o?.affectedAreas?.length || 0), 0) : 0}</p>
                 </div>
                 <MapPin className="w-8 h-8 text-blue-500" />
               </div>
@@ -212,48 +165,43 @@ const OutbreakDetection = () => {
                 </Button>
               ))}
             </div>
-
-            <Button variant="outline" size="sm">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
           </div>
         </div>
 
         {/* Outbreaks List */}
         <div className="space-y-6">
-          {filteredOutbreaks.map((outbreak) => (
-            <Card key={outbreak.id} className={`border-l-4 ${getSeverityColor(outbreak.severity).split(' ')[2]}`}>
+          {filteredOutbreaks.map((outbreak, index) => (
+            <Card key={outbreak?.id || index} className={`border-l-4 ${getSeverityColor(outbreak?.severity || 'unknown').split(' ')[2]}`}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-semibold text-gray-900">{outbreak.disease}</h3>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSeverityColor(outbreak.severity)}`}>
-                        {outbreak.severity.toUpperCase()} SEVERITY
+                      <h3 className="text-xl font-semibold text-gray-900">{outbreak?.disease || 'Unknown'}</h3>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getSeverityColor(outbreak?.severity || 'unknown')}`}>
+                        {(outbreak?.severity || 'unknown').toUpperCase()} SEVERITY
                       </span>
                       <div className="flex items-center gap-1">
-                        {getTrendIcon(outbreak.trend)}
-                        <span className="text-sm text-gray-600">{outbreak.trend}</span>
+                        {getTrendIcon(outbreak?.trend || 'unknown')}
+                        <span className="text-sm text-gray-600">{outbreak?.trend || 'unknown'}</span>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
                       <div>
                         <span className="text-gray-600">Reported Cases:</span>
-                        <span className="ml-2 font-semibold text-lg">{outbreak.reportedCases}</span>
+                        <span className="ml-2 font-semibold text-lg">{outbreak?.reportedCases || 0}</span>
                       </div>
                       <div>
                         <span className="text-gray-600">Seasonality:</span>
-                        <span className="ml-2 font-medium capitalize">{outbreak.seasonality}</span>
+                        <span className="ml-2 font-medium capitalize">{outbreak?.seasonality || 'unknown'}</span>
                       </div>
                       <div>
                         <span className="text-gray-600">Detected:</span>
-                        <span className="ml-2 font-medium">{outbreak.detectionDate}</span>
+                        <span className="ml-2 font-medium">{outbreak?.detectionDate || 'N/A'}</span>
                       </div>
                       <div>
                         <span className="text-gray-600">Peak Prediction:</span>
-                        <span className="ml-2 font-medium">{outbreak.predictedPeak}</span>
+                        <span className="ml-2 font-medium">{outbreak?.predictedPeak || 'N/A'}</span>
                       </div>
                     </div>
 
@@ -263,9 +211,9 @@ const OutbreakDetection = () => {
                         Affected Areas
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {outbreak.affectedAreas.map((area, index) => (
+                        {(outbreak?.affectedAreas || []).map((area, index) => (
                           <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
-                            {area}
+                            {area || 'Unknown'}
                           </span>
                         ))}
                       </div>
@@ -278,7 +226,7 @@ const OutbreakDetection = () => {
                           Risk Factors
                         </div>
                         <ul className="text-sm space-y-1">
-                          {outbreak.riskFactors.map((factor, index) => (
+                          {(outbreak?.riskFactors || []).map((factor, index) => (
                             <li key={index} className="flex items-start gap-2">
                               <span className="text-orange-500 mt-1">•</span>
                               <span>{factor}</span>
@@ -293,7 +241,7 @@ const OutbreakDetection = () => {
                           Recommendations
                         </div>
                         <ul className="text-sm space-y-1">
-                          {outbreak.recommendations.map((rec, index) => (
+                          {(outbreak?.recommendations || []).map((rec, index) => (
                             <li key={index} className="flex items-start gap-2">
                               <span className="text-green-500 mt-1">•</span>
                               <span>{rec}</span>
@@ -308,7 +256,7 @@ const OutbreakDetection = () => {
                     <Button variant="outline" size="sm">
                       View Details
                     </Button>
-                    {outbreak.severity === "critical" && (
+                    {outbreak?.severity === "critical" && (
                       <Button variant="destructive" size="sm">
                         Emergency Response
                       </Button>

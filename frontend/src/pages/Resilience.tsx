@@ -5,8 +5,15 @@ import { Shield, Activity, TrendingUp, Map as MapIcon, Globe, Info } from "lucid
 import { cn } from "@/lib/utils";
 
 // LEAFLET IMPORTS
-import { MapContainer, TileLayer, Polygon, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Polygon, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+
+// Component to set map view
+const MapView = ({ center, zoom }: { center: [number, number]; zoom: number }) => {
+  const map = useMap();
+  map.setView(center, zoom);
+  return null;
+};
 
 // 1. STATIC DATASET: 5 Zones with ~50 Sub-Areas
 const MUMBAI_STATIC_DATA: Record<string, { areas: Record<string, number>, avg: number }> = {
@@ -125,11 +132,9 @@ const StaticResilience = () => {
               {/* Map Visualization */}
               <div className="bg-white rounded-[2.5rem] border overflow-hidden shadow-sm relative z-0">
                 <MapContainer 
-                  center={[19.0760, 72.8777]} 
-                  zoom={10.5} 
                   className="h-full w-full grayscale-[0.2]"
-                  attributionControl={false}
                 >
+                  <MapView center={[19.0760, 72.8777]} zoom={10.5} />
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                   {Object.entries(DISTRICT_BOUNDS).map(([name, coords]) => {
                     const isSelectedZone = name === currentZone;

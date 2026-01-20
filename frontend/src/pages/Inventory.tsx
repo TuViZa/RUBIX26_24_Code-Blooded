@@ -76,7 +76,6 @@ const Inventory = () => {
   const lowStockCount = items.filter(i => i.stock < i.minStock).length;
 
   return (
-    <AppLayout>
       <div className="container mx-auto px-4 py-8">
         {/* Header Section (Unchanged) */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
@@ -275,7 +274,6 @@ const Inventory = () => {
           </div>
         )}
       </div>
-    </AppLayout>
   );
 };
 

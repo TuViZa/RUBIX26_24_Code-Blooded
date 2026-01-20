@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppLayout } from "@/components/layout/AppLayout";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +68,7 @@ const InventoryTest = () => {
   useEffect(() => { fetchHospitals(); }, []);
 
   return (
-    <AppLayout>
+    
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-start mb-10">
           <div>
@@ -185,7 +185,7 @@ const InventoryTest = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
+    
   );
 };
 

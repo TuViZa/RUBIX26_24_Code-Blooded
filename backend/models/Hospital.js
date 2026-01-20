@@ -21,11 +21,6 @@ const hospitalSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
-  occupiedBeds: {
-    type: Number,
-    required: true,
-    min: 0
-  },
   inventory: [{
     name: {
       type: String,
