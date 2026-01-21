@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Activity, Eye, EyeOff, Hospital, User, Stethoscope, Users } from 'lucide-react';
+import { Eye, EyeOff, Hospital, User, Stethoscope, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole, ROLE_LABELS, ROLE_ICONS } from '@/types/auth';
 import { toast } from 'sonner';
@@ -85,9 +85,11 @@ export const Login = () => {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-600 to-green-500 flex items-center justify-center shadow-lg">
-              <Activity className="w-6 h-6 text-white" />
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="CuraNet Logo" 
+              className="w-12 h-12 object-contain"
+            />
             <span className="font-sans text-[24px] font-[700] leading-[1.3] tracking-[-0.01em] text-gray-900">CuraNet</span>
           </div>
         </div>

@@ -79,11 +79,8 @@ export function AppSidebar() {
               <img src="/logo.png" alt="CuraNet Logo" className="w-full h-full object-cover" />
             </div>
             {!collapsed && (
-              <span 
-                className="font-bold text-xl italic" 
-                style={{ fontFamily: "'Lobster', cursive" }}
-              >
-                <span style={{ color: '#40E0D0' }}>Cura</span>
+              <span className="text-xl font-bold tracking-tight">
+                <span className="text-teal-400">Cura</span>
                 <span className="text-white">Net</span>
               </span>
             )}

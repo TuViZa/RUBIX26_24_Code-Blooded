@@ -16,13 +16,10 @@ export const SimpleHeader = () => {
               <img src="/logo.png" alt="CuraNet Logo" className="w-full h-full object-cover" />
             </div>
             
-            {/* Updated Branding with Lobster Font */}
+            {/* Updated Branding - Font matches Command Center style */}
             <div className="flex flex-col sm:flex-row sm:items-baseline">
-              <span 
-                className="font-bold text-xl italic" 
-                style={{ fontFamily: "'Lobster', cursive" }}
-              >
-                <span style={{ color: '#40E0D0' }}>Cura</span>
+              <span className="text-xl font-bold tracking-tight">
+                <span className="text-teal-400">Cura</span>
                 <span className="text-white">Net</span>
               </span>
               <span className="hidden sm:inline-block text-xs text-teal-300 ml-2 font-medium">
